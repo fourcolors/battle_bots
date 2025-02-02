@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=23.7.0",
+    "pnpm": ">=7.0.0"
+  }
+}

@@ -1,0 +1,7 @@
+---
+description: General rules
+globs: 
+---
+
+# Tools
+Always prefer to use pnpm

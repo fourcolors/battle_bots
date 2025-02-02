@@ -9,7 +9,7 @@ importers:
   .:
     devDependencies:
       turbo:
-        specifier: latest
+        specifier: ^2.4.0
         version: 2.4.0
 
   apps/remix:

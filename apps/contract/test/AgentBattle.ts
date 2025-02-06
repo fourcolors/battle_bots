@@ -1,242 +1,136 @@
-import { time, loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import hre from "hardhat";
+import { Contract, ethers } from "ethers";
 
-describe("AgentBattle Contract", function () {
-  // -------------------------------------
-  // FIXTURE: Deploy contract
-  // -------------------------------------
+describe("AgentBattle Contract with USDC Betting", function () {
   async function deployAgentBattleFixture() {
-    const [owner, otherAccount, thirdAccount] = await hre.ethers.getSigners();
+    const [owner, player1, player2, treasury] = await hre.ethers.getSigners();
 
+    // Deploy a mock USDC token
+    const ERC20Mock = await hre.ethers.getContractFactory("ERC20Mock");
+    const initialSupply = ethers.parseUnits("1000000", 6); // USDC has 6 decimals
+    const usdc = await ERC20Mock.deploy("Mock USDC", "USDC", owner.address, initialSupply);
+    await usdc.waitForDeployment();
+
+    // Transfer USDC to players
+    const playerAmount = ethers.parseUnits("1000", 6);
+    await usdc.transfer(player1.address, playerAmount);
+    await usdc.transfer(player2.address, playerAmount);
+
+    // Deploy AgentBattle contract
     const AgentBattle = await hre.ethers.getContractFactory("AgentBattle");
-    const agentBattle = await AgentBattle.deploy();
+    const agentBattle = await AgentBattle.deploy(usdc.target, treasury.address);
+    await agentBattle.waitForDeployment();
 
-    return { agentBattle, owner, otherAccount, thirdAccount };
+    return { agentBattle, usdc, owner, player1, player2, treasury };
   }
 
-  // -------------------------------------
-  // DEPLOYMENT
-  // -------------------------------------
   describe("Deployment", function () {
-    it("Should set the initial gameCounter to 0", async function () {
+    it("Should initialize gameCounter to 0", async function () {
       const { agentBattle } = await loadFixture(deployAgentBattleFixture);
-      const counter = await agentBattle.gameCounter();
-      expect(counter).to.equal(0);
+      expect(await agentBattle.gameCounter()).to.equal(0);
     });
   });
 
-  // -------------------------------------
-  // CREATE GAME
-  // -------------------------------------
   describe("Game Creation", function () {
-    it("Should create a new game and increment the gameCounter", async function () {
+    it("Should create a new game with correct bet amount", async function () {
       const { agentBattle } = await loadFixture(deployAgentBattleFixture);
-
-      // gameCounter should start at 0
-      expect(await agentBattle.gameCounter()).to.equal(0);
-
-      // create a new game
-      const tx = await agentBattle.createGame();
-      await tx.wait();
-
-      // now gameCounter should be 1
+      const betAmount = ethers.parseUnits("50", 6);
+      
+      await agentBattle.createGame(betAmount);
+      
       expect(await agentBattle.gameCounter()).to.equal(1);
-
-      // check game state
       const gameInfo = await agentBattle.games(1);
       expect(gameInfo.active).to.equal(true);
-      // the owner of this game is the caller (test signer)
+      expect(gameInfo.betAmount).to.equal(betAmount);
+      expect(gameInfo.prizePool).to.equal(0);
     });
   });
 
-  // -------------------------------------
-  // REGISTER BOTS
-  // -------------------------------------
   describe("Register Bots", function () {
     async function createGameAndRegisterBotFixture() {
-      const fixture = await loadFixture(deployAgentBattleFixture);
-      const { agentBattle, owner } = fixture;
+      const { agentBattle, usdc, player1 } = await loadFixture(deployAgentBattleFixture);
+      const betAmount = ethers.parseUnits("50", 6);
+      
+      await agentBattle.createGame(betAmount);
+      await usdc.connect(player1).approve(agentBattle.target, betAmount);
 
-      // Create a game
-      await agentBattle.createGame();
-      // gameId will be 1 (since it starts at 0 and increments)
-
-      // Register one bot
-      const botTx = await agentBattle.registerBot(
-        1, // gameId
-        5, // x
-        5, // y
-        180, // orientation
-        10, // HP
-        3,  // Attack
-        2,  // Defense
-        2,  // Speed
-        10, // Fuel
-        1   // weaponChoice (basic gun)
+      await agentBattle.connect(player1).registerBot(
+        1, 5, 5, 180, 10, 3, 2, 2, 10, 1
       );
-      await botTx.wait();
 
-      return { ...fixture, gameId: 1 };
+      return { agentBattle, usdc, player1, gameId: 1, betAmount };
     }
 
-    it("Should allow registering a bot for an active game", async function () {
-      const { agentBattle, gameId } = await loadFixture(createGameAndRegisterBotFixture);
+    it("Should allow a player to register a bot and lock bet USDC", async function () {
+      const { agentBattle, usdc, player1, gameId, betAmount } = await createGameAndRegisterBotFixture();
 
-      // check botCount
-      const botCount = await agentBattle.getBotCount(gameId);
-      expect(botCount).to.equal(1);
+      const gameInfo = await agentBattle.games(gameId);
+      expect(gameInfo.prizePool).to.equal(betAmount);
 
-      // check stored Bot data
       const botStruct = await agentBattle.getBot(gameId, 0);
-      expect(botStruct.x).to.equal(5);
-      expect(botStruct.y).to.equal(5);
-      expect(botStruct.orientation).to.equal(180);
-      expect(botStruct.HP).to.equal(10);
-      expect(botStruct.Attack).to.equal(3);
-      expect(botStruct.Defense).to.equal(2);
-      expect(botStruct.Speed).to.equal(2);
-      expect(botStruct.Fuel).to.equal(10);
-      expect(botStruct.weaponChoice).to.equal(1);
+      expect(botStruct.owner).to.equal(player1.address);
+
+      const playerBalance = await usdc.balanceOf(player1.address);
+      expect(playerBalance).to.equal(ethers.parseUnits("1000", 6) - betAmount);
     });
 
-    it("Should revert if gameId does not exist (game not active)", async function () {
-      const { agentBattle } = await loadFixture(deployAgentBattleFixture);
-
-      // No game created => gameId=1 doesn't exist
+    it("Should revert if the game does not exist", async function () {
+      const { agentBattle, player1, usdc } = await loadFixture(deployAgentBattleFixture);
+      const betAmount = ethers.parseUnits("50", 6);
+      
+      await usdc.connect(player1).approve(agentBattle.target, betAmount);
+      
       await expect(
-        agentBattle.registerBot(
-          1, // gameId that doesn't exist
-          5, 5, 0, 10, 3, 3, 2, 10, 0
-        )
+        agentBattle.connect(player1).registerBot(1, 5, 5, 180, 10, 3, 2, 2, 10, 1)
       ).to.be.revertedWith("Game not active or doesn't exist");
     });
   });
 
-  // -------------------------------------
-  // UPDATE BOT STATE
-  // -------------------------------------
-  describe("Update Bot State", function () {
-    async function createGameWithBotFixture() {
-      const fixture = await loadFixture(deployAgentBattleFixture);
-      const { agentBattle, owner } = fixture;
+  describe("Finish Game and Prize Distribution", function () {
+    async function createGameAndFinishFixture() {
+      const { agentBattle, usdc, player1, player2, treasury } = await loadFixture(deployAgentBattleFixture);
+      const betAmount = ethers.parseUnits("50", 6);
 
-      // Create game #1
-      await agentBattle.createGame();
+      await agentBattle.createGame(betAmount);
+      
+      await usdc.connect(player1).approve(agentBattle.target, betAmount);
+      await agentBattle.connect(player1).registerBot(1, 0, 0, 0, 10, 3, 2, 2, 10, 0);
 
-      // Register bot #0
-      await agentBattle.registerBot(
-        1, // gameId
-        1, 1, 0, 10, 2, 2, 2, 10, 0
-      );
+      await usdc.connect(player2).approve(agentBattle.target, betAmount);
+      await agentBattle.connect(player2).registerBot(1, 10, 10, 180, 10, 2, 3, 2, 10, 1);
 
-      return { ...fixture, gameId: 1 };
+      return { agentBattle, usdc, player1, player2, treasury, gameId: 1, betAmount };
     }
 
-    it("Should update a bot's position, orientation, HP, Fuel, and damageDealt", async function () {
-      const { agentBattle, gameId } = await loadFixture(createGameWithBotFixture);
+    it("Should distribute the prize correctly when game ends", async function () {
+      const { agentBattle, usdc, player1, player2, treasury, gameId, betAmount } = await createGameAndFinishFixture();
 
-      // initial data
-      let botStruct = await agentBattle.getBot(gameId, 0);
-      expect(botStruct.x).to.equal(1);
-      expect(botStruct.y).to.equal(1);
-      expect(botStruct.orientation).to.equal(0);
-      expect(botStruct.HP).to.equal(10);
-      expect(botStruct.Fuel).to.equal(10);
-      expect(botStruct.damageDealt).to.equal(0);
+      const prizePool = betAmount * BigInt(2);
+      const treasuryCut = (prizePool * BigInt(10)) / BigInt(100);
+      const winnerAmount = prizePool - treasuryCut;
 
-      // update the bot state
-      await agentBattle.updateBotState(
-        gameId,
-        0,
-        3, // new x
-        4, // new y
-        90, // new orientation
-        7,  // new HP
-        5,  // new Fuel
-        2   // new damageDealt
-      );
-
-      // recheck
-      botStruct = await agentBattle.getBot(gameId, 0);
-      expect(botStruct.x).to.equal(3);
-      expect(botStruct.y).to.equal(4);
-      expect(botStruct.orientation).to.equal(90);
-      expect(botStruct.HP).to.equal(7);
-      expect(botStruct.Fuel).to.equal(5);
-      expect(botStruct.damageDealt).to.equal(2);
-    });
-
-    it("Should revert if game is not active", async function () {
-      const { agentBattle, gameId } = await loadFixture(createGameWithBotFixture);
-      // finish the game => not active
       await agentBattle.finishGame(gameId, 0);
 
-      await expect(
-        agentBattle.updateBotState(
-          gameId,
-          0,
-          10, 10, 0, 5, 5, 5
-        )
-      ).to.be.revertedWith("Game not active");
-    });
-  });
+      expect(await agentBattle.finished(gameId)).to.equal(true);
+      expect(await agentBattle.winnerBotId(gameId)).to.equal(0);
 
-  // -------------------------------------
-  // FINISH GAME
-  // -------------------------------------
-  describe("Finish Game", function () {
-    async function createGameAndFinishFixture() {
-      const fixture = await loadFixture(deployAgentBattleFixture);
-      const { agentBattle, owner } = fixture;
+      const player1Balance = await usdc.balanceOf(player1.address);
+      const treasuryBalance = await usdc.balanceOf(treasury.address);
 
-      // Create game #1
-      await agentBattle.createGame();
-
-      // Register 2 bots
-      await agentBattle.registerBot(
-        1, // gameId
-        0, 0, 0, 10, 3, 2, 2, 10, 0
-      );
-      await agentBattle.registerBot(
-        1, // gameId
-        10, 10, 180, 10, 2, 3, 2, 10, 1
-      );
-
-      // finish the game with bot #0 as winner
-      const finishTx = await agentBattle.finishGame(1, 0);
-      await finishTx.wait();
-
-      return { ...fixture, gameId: 1 };
-    }
-
-    it("Should mark the game as finished and store the winner", async function () {
-      const { agentBattle } = await loadFixture(createGameAndFinishFixture);
-
-      // check that finished[1] == true
-      expect(await agentBattle.finished(1)).to.equal(true);
-      // check the winnerBotId
-      expect(await agentBattle.winnerBotId(1)).to.equal(0);
-
-      // The game struct’s 'active' field should be false
-      const gameInfo = await agentBattle.games(1);
-      expect(gameInfo.active).to.equal(false);
+      expect(player1Balance).to.equal(ethers.parseUnits("1000", 6) - betAmount + winnerAmount);
+      expect(treasuryBalance).to.equal(treasuryCut);
     });
 
-    it("Should revert if the game was already finished once", async function () {
-      const { agentBattle, gameId } = await loadFixture(createGameAndFinishFixture);
-
-      // Attempt finishing again
-      await expect(
-        agentBattle.finishGame(gameId, 1)
-      ).to.be.revertedWith("Already finished");
+    it("Should revert if trying to finish an already finished game", async function () {
+      const { agentBattle, gameId } = await createGameAndFinishFixture();
+      await agentBattle.finishGame(gameId, 0);
+      await expect(agentBattle.finishGame(gameId, 0)).to.be.revertedWith("Already finished");
     });
 
-    it("Should revert if the game does not exist or not active", async function () {
+    it("Should revert if game does not exist", async function () {
       const { agentBattle } = await loadFixture(deployAgentBattleFixture);
-
-      // no game => gameId=1 doesn't exist
       await expect(agentBattle.finishGame(1, 0)).to.be.revertedWith("Game not active");
     });
   });

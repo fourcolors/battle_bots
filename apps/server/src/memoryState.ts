@@ -14,14 +14,14 @@ export interface BotState {
     Fuel: number;
     damageDealt: number;
     weaponChoice: number; // 0..4
+    apConsumed: number;  // AP consumed in the current turn (0 to 2)
   }
   
   export interface GameState {
     isActive: boolean;
     turnCount: number;
     bots: BotState[];
-    // track who has AP left, etc. 
-    // Or you can track it in the logic function.
+    currentBotIndex: number; // which bot's turn it is now (round-robin order)
   }
   
   export const games: Record<string, GameState> = {};

@@ -162,6 +162,36 @@ router.post("/turn", (req, res) => {
   return res.json({ successLog, botState: bot });
 });
 
+router.get("/getGameState/:gameId", (req, res) => {
+  const { gameId } = req.params;
+  const game = games[gameId];
+
+  if (!game) {
+    return res.status(404).json({ error: "Game not found" });
+  }
+
+  // Return full game state (active status, bots, turn count, etc.)
+  return res.json({
+    gameId: gameId,
+    isActive: game.isActive,
+    turnCount: game.turnCount,
+    bots: game.bots.map((bot, index) => ({
+      botId: index,
+      x: bot.x,
+      y: bot.y,
+      orientation: bot.orientation,
+      HP: bot.HP,
+      Attack: bot.Attack,
+      Defense: bot.Defense,
+      Speed: bot.Speed,
+      Fuel: bot.Fuel,
+      damageDealt: bot.damageDealt,
+      weaponChoice: bot.weaponChoice
+    }))
+  });
+});
+
+
 /**
  * Optionally, sync ephemeral states on-chain using updateBotState
  * so watchers can see partial states.

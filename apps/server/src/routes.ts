@@ -21,47 +21,55 @@ let actionIdCounter = 0;
 router.post("/createGame", async (req, res) => {
   try {
     const { betAmount } = req.body;
-    if (!betAmount) {
-      return res.status(400).json({ error: "betAmount is required" });
+    if (!betAmount || betAmount <= 0) {
+      return res.status(400).json({ error: "betAmount is required and must be greater than zero" });
     }
-    // Call smart contract to create a new game with the fixed bet amount.
+
+    // Call smart contract to create a new game with a fixed bet amount
     const gameId = (await contractWrapper.createGame(betAmount)).toString();
-    // Initialize off-chain game state.
+
+    // Initialize off-chain game state
     games[gameId] = {
       isActive: true,
       turnCount: 0,
       currentBotIndex: 0,
-      bots: []
+      bots: [],
+      betAmount, // Store betAmount for validation
     };
-    console.log(`Game ${gameId} created with betAmount ${betAmount}. Starting with bot index 0.`);
-    return res.json({ ok: true, gameId });
+
+    console.log(`Game ${gameId} created with betAmount ${betAmount}.`);
+    return res.json({ ok: true, gameId, betAmount });
   } catch (err: any) {
     console.error("Error in createGame:", err);
     return res.status(500).json({ error: err.message });
   }
 });
 
-// --- Endpoint 2: Register Bots ---
+
+// --- Endpoint 2: Register Bot ---
 // NOTE: The user has already called registerBot on-chain (which locks in the USDC bet)
 // We now record the bot off-chain along with its initial AI prompt.
 // For now, we mark each bot as unverified; verification can be added as a separate task.
-router.post("/registerBots", async (req, res) => {
-  const { gameId, bots } = req.body; // bots should include fields like x, y, orientation, HP, etc. and an optional "prompt"
+router.post("/registerBot", async (req, res) => {
   try {
+    const { gameId, bot } = req.body;
     if (!games[gameId]) {
       return res.status(400).json({ error: "Game not found" });
     }
-    for (let i = 0; i < bots.length; i++) {
-      const b = bots[i];
-      // todo: sync with on-chain here
-      // Save the bot off-chain along with its AI prompt and unverified flag.
-      games[gameId].bots.push({ ...b, apConsumed: 0, verified: false });
-      console.log(`Registered bot ${i} for game ${gameId} off-chain. (Unverified)`);
-    }
-    return res.json({ ok: true });
+
+    const game = games[gameId];
+    const botIndex = game.bots.length; // Assign bot index dynamically
+
+    // Store bot with assigned botIndex
+    const storedBot = { ...bot, botIndex, apConsumed: 0, verified: false };
+    game.bots.push(storedBot);
+
+    console.log(`Bot ${botIndex} registered for game ${gameId} off-chain.`);
+    return res.json({ ok: true, gameId, botIndex, bot: storedBot });
   } catch (err: any) {
-    console.error("Error in registerBots:", err);
+    console.error("Error in registerBot:", err);
     return res.status(500).json({ error: err.message });
+    
   }
 });
 
@@ -195,8 +203,10 @@ router.get("/getGameState/:gameId", (req, res) => {
     gameId: gameId,
     isActive: game.isActive,
     turnCount: game.turnCount,
+    currentBotIndex: game.currentBotIndex,
+    betAmount: game.betAmount,
     bots: game.bots.map((bot, index) => ({
-      botId: index,
+      botIndex: index,
       x: bot.x,
       y: bot.y,
       orientation: bot.orientation,

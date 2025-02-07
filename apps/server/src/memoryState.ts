@@ -15,6 +15,7 @@ export interface BotState {
     damageDealt: number;
     weaponChoice: number; // 0..4
     apConsumed: number;  // AP consumed in the current turn (0 to 2)
+    botIndex: number;
     // Off-chain additions:
     prompt?: string;
     verified?: boolean;
@@ -25,6 +26,7 @@ export interface BotState {
     turnCount: number;
     bots: BotState[];
     currentBotIndex: number; // which bot's turn it is now (round-robin order)
+    betAmount: number,
   }
   
   export const games: Record<string, GameState> = {};

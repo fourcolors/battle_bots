@@ -1,7 +1,5 @@
-// server/src/contractWrapper.ts
 import { ethers } from "ethers";
-// Path depends on where your compiled artifacts are located
-// If using default Hardhat structure, they'll be in ../artifacts/contracts/...
+// Adjust the path to your compiled artifact as needed.
 import AgentBattleArtifact from "../../../contract/artifacts/contracts/AgentBattle.sol/AgentBattle.json";
 
 import dotenv from "dotenv";
@@ -21,13 +19,15 @@ export class ContractWrapper implements IContractWrapper {
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
 
-    // Use the ABI from your contract artifact
+    // Instantiate the contract using its ABI and address.
     this.contract = new ethers.Contract(contractAddress, AgentBattleArtifact.abi, this.wallet);
   }
 
-  async createGame(): Promise<string> {
-    const tx = await this.contract.createGame();
+  async createGame(betAmount: number): Promise<string> {
+    // Call createGame with the bet amount.
+    const tx = await this.contract.createGame(betAmount);
     await tx.wait();
+    // Fetch the new gameCounter (gameId).
     const gameCounter = await this.contract.gameCounter();
     return gameCounter.toString();
   }

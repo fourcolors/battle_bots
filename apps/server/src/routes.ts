@@ -16,17 +16,24 @@ const contractWrapper: IContractWrapper = getContractWrapper(); // Dependency In
 // Just for example, we store an incrementing local ID for "bot actions"
 let actionIdCounter = 0;
 
-// Create a new game endpoint
+// --- Endpoint 1: Create Game ---
+// Users must provide a betAmount (in USDC, as defined by our smart contract).
 router.post("/createGame", async (req, res) => {
   try {
-    const gameId = (await contractWrapper.createGame()).toString();
+    const { betAmount } = req.body;
+    if (!betAmount) {
+      return res.status(400).json({ error: "betAmount is required" });
+    }
+    // Call smart contract to create a new game with the fixed bet amount.
+    const gameId = (await contractWrapper.createGame(betAmount)).toString();
+    // Initialize off-chain game state.
     games[gameId] = {
       isActive: true,
       turnCount: 0,
       currentBotIndex: 0,
       bots: []
     };
-    console.log(`Game ${gameId} created. Starting with bot index 0.`);
+    console.log(`Game ${gameId} created with betAmount ${betAmount}. Starting with bot index 0.`);
     return res.json({ ok: true, gameId });
   } catch (err: any) {
     console.error("Error in createGame:", err);
@@ -34,30 +41,22 @@ router.post("/createGame", async (req, res) => {
   }
 });
 
-// Register bots and initialize their AP counters
+// --- Endpoint 2: Register Bots ---
+// NOTE: The user has already called registerBot on-chain (which locks in the USDC bet)
+// We now record the bot off-chain along with its initial AI prompt.
+// For now, we mark each bot as unverified; verification can be added as a separate task.
 router.post("/registerBots", async (req, res) => {
-  const { gameId, bots } = req.body;
+  const { gameId, bots } = req.body; // bots should include fields like x, y, orientation, HP, etc. and an optional "prompt"
   try {
     if (!games[gameId]) {
       return res.status(400).json({ error: "Game not found" });
     }
     for (let i = 0; i < bots.length; i++) {
       const b = bots[i];
-      await contractWrapper.registerBot(
-        gameId,
-        b.x,
-        b.y,
-        b.orientation,
-        b.HP,
-        b.Attack,
-        b.Defense,
-        b.Speed,
-        b.Fuel,
-        b.weaponChoice
-      );
-      // Add extra field: apConsumed starts at 0.
-      games[gameId].bots.push({ ...b, apConsumed: 0 });
-      console.log(`Registered bot ${i} for game ${gameId}.`);
+      // todo: sync with on-chain here
+      // Save the bot off-chain along with its AI prompt and unverified flag.
+      games[gameId].bots.push({ ...b, apConsumed: 0, verified: false });
+      console.log(`Registered bot ${i} for game ${gameId} off-chain. (Unverified)`);
     }
     return res.json({ ok: true });
   } catch (err: any) {
@@ -66,7 +65,9 @@ router.post("/registerBots", async (req, res) => {
   }
 });
 
-router.post("/turn", (req, res) => {
+// --- Endpoint 3: Process a Turn & Auto-Finish if Game Over ---
+// Processes the current bot’s turn and, if only one bot remains alive, automatically settles the game.
+router.post("/turn", async (req, res) => {
   const { gameId, botIndex, actions } = req.body;
   const game = games[gameId];
   if (!game || !game.isActive) {
@@ -85,7 +86,6 @@ router.post("/turn", (req, res) => {
   }
   
   console.log(`Game ${gameId} Bot ${botIndex} starting turn. Global turnCount=${game.turnCount}`);
-  
   let successLog: string[] = [];
   
   // Process each action sequentially until 2 AP are consumed.
@@ -98,13 +98,12 @@ router.post("/turn", (req, res) => {
       successLog.push("Bot is destroyed, cannot perform further actions.");
       break;
     }
-
     if (act.type === "move") {
       const result = performMove(bot, act.x, act.y);
       if (result === "OK") {
         successLog.push(`Move success: new position (${bot.x}, ${bot.y}).`);
         console.log(`Bot ${botIndex} moved to (${bot.x}, ${bot.y}).`);
-        bot.apConsumed++;  // Consume AP if move was successful.
+        bot.apConsumed++;
       } else {
         successLog.push(`Move failed: ${result}.`);
         console.log(`Bot ${botIndex} move failed: ${result}.`);
@@ -120,7 +119,7 @@ router.post("/turn", (req, res) => {
         console.log(`Bot ${botIndex} rotate failed: ${result}.`);
       }
     } else if (act.type === "attack") {
-      // Attack consumes AP regardless.
+      // Attack always consumes 1 AP.
       bot.apConsumed++;
       const target = game.bots[act.targetIndex];
       if (!target) {
@@ -142,35 +141,56 @@ router.post("/turn", (req, res) => {
     }
   }
 
-  // When the bot has consumed 2 AP, its turn is complete.
+  // Check if the bot has consumed its 2 AP; if so, update turn order.
   if (bot.apConsumed >= 2) {
-    console.log(`Bot ${botIndex} finished its turn (consumed 2 AP). Resetting AP and updating turn order.`);
-    // Reset AP for this bot (if needed for future rounds)
+    console.log(`Bot ${botIndex} finished its turn (2 AP consumed). Resetting AP and updating turn order.`);
     bot.apConsumed = 0;
-    
-    // Update the global turn order.
-    // Move to the next bot in the list.
     game.currentBotIndex = (game.currentBotIndex + 1) % game.bots.length;
-    // If we've wrapped back to index 0, increment the global turn counter.
     if (game.currentBotIndex === 0) {
       game.turnCount++;
-      console.log(`All bots have acted. Incrementing global turn count to ${game.turnCount}.`);
+      console.log(`All bots have acted. Global turn count is now ${game.turnCount}.`);
     }
   } else {
-    console.log(`Bot ${botIndex} ended turn with ${bot.apConsumed} AP consumed (turn not complete).`);
+    console.log(`Bot ${botIndex} ended turn with ${bot.apConsumed} AP (turn incomplete).`);
+  }
+
+  // *** Auto-Finish Logic ***  
+  // Count alive bots (HP > 0). If only one remains, end the game.
+  const aliveBots = game.bots.filter(b => b.HP > 0);
+  if (aliveBots.length === 1) {
+    // Identify the winning bot index.
+    const winningBotIndex = game.bots.findIndex(b => b.HP > 0);
+    try {
+      await contractWrapper.finishGame(gameId, winningBotIndex);
+      game.isActive = false;
+      console.log(`Game ${gameId} auto-finished. Winning bot: ${winningBotIndex}`);
+      return res.json({
+        successLog: [...successLog, `Game auto-finished. Bot ${winningBotIndex} wins.`],
+        winner: winningBotIndex,
+        turnCount: game.turnCount
+      });
+    } catch (err: any) {
+      console.error("Error auto-finishing game:", err);
+      return res.status(500).json({ error: err.message });
+    }
   }
   
-  return res.json({ successLog, botState: bot, currentBotIndex: game.currentBotIndex, turnCount: game.turnCount });
+  return res.json({
+    successLog,
+    botState: bot,
+    currentBotIndex: game.currentBotIndex,
+    turnCount: game.turnCount
+  });
 });
 
+// --- Endpoint 4: Get Game State ---
+// Returns current off-chain game state including bot parameters, prompt, and verification status.
 router.get("/getGameState/:gameId", (req, res) => {
   const { gameId } = req.params;
   const game = games[gameId];
-
   if (!game) {
     return res.status(404).json({ error: "Game not found" });
   }
-
   return res.json({
     gameId: gameId,
     isActive: game.isActive,
@@ -186,11 +206,16 @@ router.get("/getGameState/:gameId", (req, res) => {
       Speed: bot.Speed,
       Fuel: bot.Fuel,
       damageDealt: bot.damageDealt,
-      weaponChoice: bot.weaponChoice
+      weaponChoice: bot.weaponChoice,
+      prompt: bot.prompt || "",
+      verified: bot.verified || false
     }))
   });
 });
 
+// --- Endpoint 5: Sync On-Chain ---
+// Skip for the MVP
+// In production, this might be done at defined checkpoints.
 router.post("/syncOnChain", async (req, res) => {
   const { gameId } = req.body;
   const game = games[gameId];
@@ -219,16 +244,20 @@ router.post("/syncOnChain", async (req, res) => {
   }
 });
 
+// --- Endpoint 6: Finish Game & Settle Bets ---
+// Once the winner is determined off-chain, we call finishGame on-chain to settle bets.
+// The smart contract then deducts a 10% fee and transfers the remaining prize pool to the winner.
 router.post("/finishGame", async (req, res) => {
   const { gameId } = req.body;
   const game = games[gameId];
   if (!game) {
     return res.status(400).json({ error: "Game not found" });
   }
+  
+  // Determine the winning bot (using highest HP, tie-break with damageDealt)
   let bestHp = -1;
   let bestDamage = -1;
   let winningBotIndex = 0;
-
   game.bots.forEach((b, i) => {
     if (b.HP > bestHp) {
       bestHp = b.HP;
@@ -250,5 +279,6 @@ router.post("/finishGame", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 export default router;

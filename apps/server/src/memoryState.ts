@@ -15,6 +15,9 @@ export interface BotState {
     damageDealt: number;
     weaponChoice: number; // 0..4
     apConsumed: number;  // AP consumed in the current turn (0 to 2)
+    // Off-chain additions:
+    prompt?: string;
+    verified?: boolean;
   }
   
   export interface GameState {

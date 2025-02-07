@@ -4,10 +4,16 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
+import {PrivyProvider} from '@privy-io/react-auth';
+import origin from "~/assets/origin.jpg" 
+import dotenv from "dotenv";
 
 import "./tailwind.css";
+
+
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -40,6 +46,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+export const loader = () => {
+  return {
+    ENV: {
+      PRIVY_APP_ID: process.env.PRIVY_APP_ID
+    }
+  };
+};
+
 export default function App() {
-  return <Outlet />;
+  const { ENV } = useLoaderData<typeof loader>();
+  
+  return (
+    <PrivyProvider
+    appId={ENV.PRIVY_APP_ID || "cm6tjsr3g0037bdcuszt7wjhj"}
+    config={{
+      appearance: {
+        theme: 'light',
+        accentColor: '#676FFF',
+        logo: origin
+      },
+      embeddedWallets: {
+        createOnLogin: 'users-without-wallets',
+      },
+    }}
+    >
+    <Outlet />
+    </PrivyProvider>
+  )
+
 }

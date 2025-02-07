@@ -11,6 +11,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^2.3.0",
+    "@privy-io/server-auth": "^1.18.5",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-slider": "^1.2.2",
     "@radix-ui/react-slot": "^1.1.1",

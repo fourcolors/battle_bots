@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import "hardhat/console.sol";
+
 contract AgentBattle {
     // ----------------------------------
     // STRUCTURES
@@ -80,7 +82,7 @@ contract AgentBattle {
             betAmount: _betAmount,
             prizePool: 0
         });
-
+        console.log("Creating game ID:", newId); // Hardhat console log
         emit GameCreated(newId, msg.sender, _betAmount);
         return newId;
     }

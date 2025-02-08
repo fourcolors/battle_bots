@@ -24,13 +24,23 @@ export class ContractWrapper implements IContractWrapper {
   }
 
   async createGame(betAmount: number): Promise<string> {
-    // Call createGame with the bet amount.
+    // 1️⃣ Send transaction to create a game
     const tx = await this.contract.createGame(betAmount);
-    await tx.wait();
+    const receipt = await tx.wait();
     // Fetch the new gameCounter (gameId).
     const gameCounter = await this.contract.gameCounter();
     return gameCounter.toString();
   }
+
+  // console.log("receipt" + JSON.stringify(receipt))
+    // const eventLogs = receipt.logs.map((log:any) => this.contract.interface.parseLog(log));
+    // console.log("eventLogs")
+    // console.log(eventLogs)
+    // const gameCreatedLog = eventLogs.find((log:any) => log?.name === "GameCreated");
+
+    // if (!gameCreatedLog) throw new Error("GameCreated event not found");
+
+    // return gameCreatedLog.args[0].toString(); // Extracted gameId
 
   async registerBot(
     gameId: number,

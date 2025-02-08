@@ -1,4 +1,5 @@
 import { HardhatUserConfig } from "hardhat/config";
+import { task } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import { vars } from "hardhat/config";
 

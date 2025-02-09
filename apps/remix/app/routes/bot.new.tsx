@@ -331,7 +331,7 @@ export default function NewBot() {
                 </button>
               ))}
             </div>
-            <div className="bg-gray-800 p-4 rounded-lg pixelated-border h-[100px] overflow-y-auto">
+            <div className="bg-gray-800 p-4 rounded-lg pixelated-border">
               <h3 className="text-lg font-semibold mb-2 text-yellow-400">
                 {weapons.find((w: Weapon) => w.id === selectedWeapon)?.name}
               </h3>

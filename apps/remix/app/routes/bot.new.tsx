@@ -2,7 +2,6 @@ import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Slider } from "../components/ui/slider";
 import { Textarea } from "../components/ui/textarea";
@@ -60,12 +59,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const attack = Number(formData.get("attack"));
   const defense = Number(formData.get("defense"));
   const speed = Number(formData.get("speed"));
-  const fuel = Number(formData.get("fuel"));
   const selectedWeapon = Number(formData.get("selectedWeapon"));
   const battlePrompt = formData.get("battlePrompt")?.toString() || "";
 
   // Validate required fields
-  if (!attack || !defense || !speed || !fuel || !selectedWeapon) {
+  if (!attack || !defense || !speed || !selectedWeapon) {
     return new Response(JSON.stringify({ error: "All fields are required" }), {
       status: 400,
     });
@@ -100,7 +98,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     Attack: attack,
     Defense: defense,
     Speed: speed,
-    Fuel: fuel,
     weaponChoice: selectedWeapon,
     prompt: battlePrompt,
   };
@@ -142,8 +139,6 @@ export default function NewBot() {
   const [attack, setAttack] = useState(2);
   const [defense, setDefense] = useState(2);
   const [speed, setSpeed] = useState(2);
-  const [fuel, setFuel] = useState("");
-  const [wager, setWager] = useState("");
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
 
   // Show loader error in toast
@@ -225,37 +220,6 @@ export default function NewBot() {
                   height={256}
                   className="pixelated"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="fuel" className="text-lg text-green-400">
-                    Fuel (USDC)
-                  </Label>
-                  <Input
-                    id="fuel"
-                    name="fuel"
-                    type="number"
-                    value={fuel}
-                    onChange={(e) => setFuel(e.target.value)}
-                    placeholder="Enter USDC amount"
-                    className="mt-1 bg-gray-800 border-gray-700 text-green-400"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="wager" className="text-lg text-red-400">
-                    Wager (USDC)
-                  </Label>
-                  <Input
-                    id="wager"
-                    name="wager"
-                    type="number"
-                    value={wager}
-                    onChange={(e) => setWager(e.target.value)}
-                    placeholder="Enter wager amount"
-                    className="mt-1 bg-gray-800 border-gray-700 text-red-400"
-                  />
-                </div>
               </div>
             </div>
 

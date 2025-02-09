@@ -3,32 +3,60 @@ import { Input } from "@components/ui/input";
 import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
-import { type ActionFunctionArgs } from "@remix-run/node";
+import {
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+} from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import type { Weapon } from "~/types/weapons";
 import { toast } from "~/utils/toast";
 
-const SERVER_URL = process.env.SERVER_URL;
+// Default to localhost:3000 if SERVER_URL is not set
+const DEFAULT_SERVER_URL = "http://localhost:3000";
 
-export async function loader() {
+export async function loader({ request }: LoaderFunctionArgs) {
+  const SERVER_URL = process.env.SERVER_URL || DEFAULT_SERVER_URL;
+  console.log("Fetching weapons from:", SERVER_URL); // Debug log
+
   try {
     const response = await fetch(`${SERVER_URL}/weapons`);
     if (!response.ok) {
-      throw new Error("Failed to fetch weapons");
+      console.error(
+        "Server response not ok:",
+        response.status,
+        response.statusText
+      );
+      throw new Error(`Failed to fetch weapons: ${response.statusText}`);
     }
     const data = await response.json();
-    // Return raw object directly for better type inference
+    if (!data.weapons) {
+      console.error("No weapons data in response:", data);
+      return { weapons: [] };
+    }
+    console.log("Weapons loaded successfully:", data.weapons.length); // Debug log
     return { weapons: data.weapons };
   } catch (error) {
     console.error("Error loading weapons:", error);
-    return { weapons: [] };
+    // Return empty array but also include error message for UI
+    return {
+      weapons: [],
+      error: error instanceof Error ? error.message : "Failed to fetch weapons",
+    };
   }
 }
 
 const MAX_POINTS = 10;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const SERVER_URL = process.env.SERVER_URL;
+  if (!SERVER_URL) {
+    return new Response(
+      JSON.stringify({ error: "Server URL not configured" }),
+      { status: 500 }
+    );
+  }
+
   const formData = await request.formData();
 
   // Get form values
@@ -110,7 +138,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function NewBot() {
-  const { weapons } = useLoaderData<typeof loader>();
+  const { weapons, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [battlePrompt, setBattlePrompt] = useState("");
@@ -120,6 +148,13 @@ export default function NewBot() {
   const [fuel, setFuel] = useState("");
   const [wager, setWager] = useState("");
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
+
+  // Show loader error in toast
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
 
   // Show action data errors/success in toast
   useEffect(() => {

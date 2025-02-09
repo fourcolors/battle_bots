@@ -5,8 +5,12 @@ import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
 import { Slider } from "../components/ui/slider";
 import { Textarea } from "../components/ui/textarea";
-import { BattleBotFormSchema } from "../schemas";
+import {
+  BattleBotFormSchema,
+  type BattleBotMetadataSchemaType,
+} from "../schemas";
 import type { Weapon } from "../types/weapons";
+import { uploadToIPFS } from "../utils/ipfs.server";
 import { toast } from "../utils/toast";
 
 // Default to localhost:3000 if SERVER_URL is not set
@@ -89,16 +93,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  // Only send user-configurable fields
-  const botData = {
-    Attack: attack,
-    Defense: defense,
-    Speed: speed,
-    weaponChoice: result.data.attributes.mainWeapon,
-    prompt: result.data.battlePrompt,
-  };
-
   try {
+    // Prepare metadata for IPFS
+    const metadata: BattleBotMetadataSchemaType = {
+      version: 1,
+      ...result.data,
+      image: "ipfs://placeholder", // This will be replaced with actual image in the future
+    };
+
+    // Upload metadata to IPFS
+    const metadataUri = await uploadToIPFS(metadata);
+    console.log("Metadata uploaded to IPFS:", metadataUri);
+
+    // Only send user-configurable fields to the server
+    const botData = {
+      Attack: attack,
+      Defense: defense,
+      Speed: speed,
+      weaponChoice: result.data.attributes.mainWeapon,
+      prompt: result.data.battlePrompt,
+      metadataUri, // Add the IPFS URI
+    };
+
     const response = await fetch(`${SERVER_URL}/registerBot`, {
       method: "POST",
       headers: {
@@ -116,12 +132,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-    const result = await response.json();
-    return new Response(JSON.stringify({ success: true, data: result }), {
-      status: 200,
-    });
+    const data = await response.json();
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data,
+        metadataUri, // Include the URI in the response
+      }),
+      {
+        status: 200,
+      }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({ error: "Failed to register bot" }), {
+    console.error("Error creating bot:", error);
+    return new Response(JSON.stringify({ error: "Failed to create bot" }), {
       status: 500,
     });
   }

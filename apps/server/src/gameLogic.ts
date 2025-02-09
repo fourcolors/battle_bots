@@ -1,62 +1,8 @@
 import { BotState, GameState } from "./memoryState";
+import { WeaponService } from "./weapons/service";
 
 // Basic movement constants
 const BASE_MOVEMENT = 2; // each Move AP => (BASE_MOVEMENT + Speed) meters
-
-// Weapons configuration
-interface Weapon {
-  name: string;
-  rangeMin: number;
-  rangeMax: number;
-  damage: number;
-  special?: string;
-  apCost: number;
-  aoeRadius?: number; // for grenade
-  coneAngle?: number; // for flamethrower
-}
-
-// 0=Net,1=Gun,2=Grenade,3=Saw,4=Flame
-const Weapons: Weapon[] = [
-  {
-    name: "Net Launcher",
-    rangeMin: 5,
-    rangeMax: 7,
-    damage: 2,
-    special: "Immobilize",
-    apCost: 1
-  },
-  {
-    name: "Basic Gun",
-    rangeMin: 1,
-    rangeMax: 7,
-    damage: 3,
-    apCost: 1
-  },
-  {
-    name: "Grenade",
-    rangeMin: 5,
-    rangeMax: 7,
-    damage: 3,
-    apCost: 1,
-    aoeRadius: 2
-  },
-  {
-    name: "Saw Blade",
-    rangeMin: 0,
-    rangeMax: 1,
-    damage: 4,
-    apCost: 1,
-    special: "+1 if back attack"
-  },
-  {
-    name: "Flamethrower",
-    rangeMin: 1,
-    rangeMax: 3,
-    damage: 3,
-    apCost: 1,
-    coneAngle: 60
-  }
-];
 
 /**
  * Calculate Euclidean distance between two points
@@ -94,75 +40,80 @@ function orientationMultiplier(attackerAngle: number, defenderAngle: number): nu
 }
 
 /**
- * Attack action:
- * 1) Check range
- * 2) If in range, compute baseDamage = attacker.Attack + weaponDamage
- * 3) orientation bonus
- * 4) finalDamage = max(1, baseDamage - defenderDefense)
- * 5) apply HP, etc.
+ * Calculate if target is in weapon range
  */
-export function performAttack(
-  attacker: BotState,
-  defender: BotState
-): { finalDamage: number; isHit: boolean } {
-  const weapon = Weapons[attacker.weaponChoice];
-
+function isInRange(attacker: BotState, defender: BotState): boolean {
   const dist = distance(attacker, defender);
+  const weaponStats = WeaponService.getWeaponStats(attacker.weaponChoice);
+  
+  if (!weaponStats) return false;
+  
+  return dist >= weaponStats.range.min && dist <= weaponStats.range.max;
+}
 
-  // Check if dist within weapon range
-  if (dist < weapon.rangeMin || dist > weapon.rangeMax) {
-    // out of range, no damage
-    return { finalDamage: 0, isHit: false };
+/**
+ * Calculate damage for an attack
+ */
+function calculateDamage(attacker: BotState, defender: BotState): number {
+  const weaponStats = WeaponService.getWeaponStats(attacker.weaponChoice);
+  if (!weaponStats) return 0;
+
+  const baseDamage = attacker.Attack + weaponStats.damage;
+  const multiplier = orientationMultiplier(attacker.orientation, defender.orientation);
+  
+  // Apply special effects
+  let bonus = 0;
+  if (weaponStats.special === "+1 if back attack" && multiplier > 1.2) {
+    bonus = 1;
   }
 
-  // If flamethrower, also check angle within 60° cone
-  if (attacker.weaponChoice === 4 && weapon.coneAngle) {
-    // we need to see if defender is within attacker's facing direction ± (coneAngle/2)
-    // quick approach: let's compute the angle from attacker to defender
-    // e.g. angle in degrees from attacker.x,y to defender.x,y
-    const angleToTarget = Math.atan2(defender.y - attacker.y, defender.x - attacker.x) * (180 / Math.PI);
-    // we have to compare angleToTarget with attacker.orientation
-    let angleDiff = Math.abs((angleToTarget - attacker.orientation) % 360);
-    if (angleDiff > 180) angleDiff = 360 - angleDiff;
-    // if angleDiff > 30 (since cone=60 => half=30), then it's out of the cone
-    if (angleDiff > (weapon.coneAngle / 2)) {
-      return { finalDamage: 0, isHit: false };
+  return Math.max(1, (baseDamage * multiplier + bonus) - defender.Defense);
+}
+
+/**
+ * Check if a weapon hits multiple targets (AOE)
+ */
+function getAOETargets(attacker: BotState, defender: BotState, game: GameState): BotState[] {
+  const weaponStats = WeaponService.getWeaponStats(attacker.weaponChoice);
+  if (!weaponStats?.aoe) return [defender];
+
+  const targets: BotState[] = [];
+  const { radius, coneAngle } = weaponStats.aoe;
+
+  game.bots.forEach(bot => {
+    if (bot === attacker) return;
+
+    const dist = distance(defender, bot);
+    
+    if (radius && dist <= radius) {
+      targets.push(bot);
+    } else if (coneAngle) {
+      // TODO: Implement cone attack logic
+      // For now, just hit the primary target
+      if (bot === defender) targets.push(bot);
     }
-  }
+  });
 
-  // baseDamage
-  let baseDamage = attacker.Attack + weapon.damage;
+  return targets;
+}
 
-  // orientation bonus
-  const orientMult = orientationMultiplier(attacker.orientation, defender.orientation);
-  baseDamage = Math.floor(baseDamage * orientMult);
+export function performAttack(game: GameState, attackerId: number, defenderId: number): boolean {
+  const attacker = game.bots[attackerId];
+  const defender = game.bots[defenderId];
 
-  // if saw blade with back attack
-  if (attacker.weaponChoice === 3) {
-    const diff = orientationDifference(attacker.orientation, defender.orientation);
-    if (diff > 120) {
-      // back attack +1
-      baseDamage += 1;
-    }
-  }
+  if (!attacker || !defender) return false;
+  if (attacker.apConsumed >= 2) return false;
+  if (!isInRange(attacker, defender)) return false;
 
-  // finalDamage = max(1, baseDamage - defender.Defense)
-  let finalDamage = baseDamage - defender.Defense;
-  if (finalDamage < 1) finalDamage = 1;
+  const targets = getAOETargets(attacker, defender, game);
+  targets.forEach(target => {
+    const damage = calculateDamage(attacker, target);
+    target.HP -= damage;
+    attacker.damageDealt += damage;
+  });
 
-  // apply HP
-  defender.HP -= finalDamage;
-  if (defender.HP < 0) {
-    defender.HP = 0;
-  }
-
-  // track damageDealt
-  attacker.damageDealt += finalDamage;
-
-  // if it's a grenade with AoE, apply lesser damage to others
-  // left as an exercise
-
-  return { finalDamage, isHit: true };
+  // AP consumption is now handled in routes.ts
+  return true;
 }
 
 /**

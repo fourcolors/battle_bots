@@ -1,17 +1,26 @@
+import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
+import type { LinksFunction } from "@remix-run/node";
 import {
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-  useLoaderData,
+    Links,
+    Meta,
+    Outlet,
+    Scripts,
+    ScrollRestoration,
+    useLoaderData,
+    useNavigate,
 } from "@remix-run/react";
+import { useEffect } from 'react';
+import { Toaster } from 'sonner';
+import { toastConfig } from './utils/toast';
 import type { LinksFunction } from "@remix-run/node";
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { base } from 'viem/chains';
 import '@coinbase/onchainkit/styles.css';
 
 import "./tailwind.css";
+
+// Use Robohash URL for the logo
+const LOGO_URL = "https://robohash.org/battlebot?set=set1&size=256x256";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -49,6 +58,7 @@ export default function App() {
         <OnchainKitProvider apiKey={ENV.ONCHAINKIT_API_KEY} chain={base}>
           <Outlet />
         </OnchainKitProvider>
+        <Toaster {...toastConfig} />
         <ScrollRestoration />
         <Scripts />
       </body>

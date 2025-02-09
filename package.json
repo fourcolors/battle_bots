@@ -13,5 +13,8 @@
   "engines": {
     "node": ">=23.7.0",
     "pnpm": ">=7.0.0"
+  },
+  "dependencies": {
+    "sonner": "^1.7.4"
   }
 }

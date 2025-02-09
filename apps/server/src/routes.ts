@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { ContractWrapper } from "./contract/contractWrapper";
-import { games, GameState, BotState } from "./memoryState";
+import { IContractWrapper } from "./contract/IContractWrapper";
+import { getContractWrapper } from "./contract/getContractWrapper";
 import {
   performAttack,
   performMove,
   performRotate
 } from "./gameLogic";
-import { IContractWrapper } from "./contract/IContractWrapper";
-import { getContractWrapper } from "./contract/getContractWrapper";
+import { games, GameState } from "./memoryState";
+import { WeaponService } from "./weapons/service";
 
 const router = Router();
 const contractWrapper: IContractWrapper = getContractWrapper(); // Dependency Injection
@@ -140,21 +140,20 @@ router.post("/turn", async (req, res) => {
         console.log(`Bot ${botIndex} rotate failed: ${result}.`);
       }
     } else if (act.type === "attack") {
-      // Attack always consumes 1 AP.
-      currentBot.apConsumed++;
       const target = game.bots[act.targetIndex];
       if (!target) {
         successLog.push("Attack failed: Invalid target index.");
         console.log(`Bot ${botIndex} attack failed: invalid target ${act.targetIndex}.`);
         continue;
       }
-      const { finalDamage, isHit } = performAttack(currentBot, target);
-      if (isHit) {
-        successLog.push(`Attack success: target #${act.targetIndex} took ${finalDamage} damage.`);
-        console.log(`Bot ${botIndex} attacked bot ${act.targetIndex} for ${finalDamage} damage.`);
+      const attackSuccess = performAttack(game, botIndex, act.targetIndex);
+      if (attackSuccess) {
+        currentBot.apConsumed++; // Only consume AP on successful attack
+        successLog.push(`Attack success: target #${act.targetIndex} was hit.`);
+        console.log(`Bot ${botIndex} successfully attacked bot ${act.targetIndex}.`);
       } else {
-        successLog.push("Attack failed: target out of range or missed.");
-        console.log(`Bot ${botIndex} attack missed or target out of range.`);
+        successLog.push("Attack failed: target out of range or invalid parameters.");
+        console.log(`Bot ${botIndex} attack failed: target out of range or invalid parameters.`);
       }
     } else {
       successLog.push(`Unknown action type: ${act.type}.`);
@@ -318,5 +317,32 @@ router.post("/finishGame", async (req, res) => {
   }
 });
 
+// --- Endpoint: Get Available Weapons ---
+router.get("/weapons", (req, res) => {
+  try {
+    const weapons = WeaponService.getAllWeapons();
+    return res.json({ weapons });
+  } catch (err: any) {
+    console.error("Error fetching weapons:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Endpoint: Get Weapon Details ---
+router.get("/weapons/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const weapon = WeaponService.getWeaponById(id);
+    
+    if (!weapon) {
+      return res.status(404).json({ error: "Weapon not found" });
+    }
+
+    return res.json({ weapon });
+  } catch (err: any) {
+    console.error("Error fetching weapon:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 export default router;

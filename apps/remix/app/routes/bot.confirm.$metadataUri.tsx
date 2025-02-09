@@ -8,13 +8,19 @@ import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useParams, useRouteLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import { encodeFunctionData, waitForTransactionReceipt } from "viem";
+import { createPublicClient, encodeFunctionData, http } from "viem";
 import { baseSepolia } from "viem/chains";
 import { useAccount } from "wagmi";
 import BattleBotABI from "../../../contract/artifacts/contracts/BattleBot.sol/BattleBot.json";
 import { Button } from "../components/ui/button";
 import type { BattleBotMetadataSchemaType } from "../schemas";
 import { toast } from "../utils/toast";
+
+// Create a public client for transaction confirmation
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const { metadataUri } = params;
@@ -105,12 +111,10 @@ export default function BotConfirm() {
                     onSuccess={async (data) => {
                       try {
                         setIsMinting(true);
-                        const receipt = data.transactionReceipts[0];
-                        
                         // Wait for transaction to be confirmed
                         toast.loading("Waiting for transaction confirmation...");
-                        await waitForTransactionReceipt(publicClient, {
-                          hash: receipt.transactionHash,
+                        const receipt = await publicClient.waitForTransactionReceipt({
+                          hash: data.transactionReceipts[0].transactionHash,
                         });
 
                         // Add a small delay to allow for indexing

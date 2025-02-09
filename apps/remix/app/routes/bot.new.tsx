@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
 import { Slider } from "../components/ui/slider";
 import { Textarea } from "../components/ui/textarea";
+import { BattleBotFormSchema } from "../schemas";
 import type { Weapon } from "../types/weapons";
 import { toast } from "../utils/toast";
 
@@ -56,40 +57,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
 
   // Get form values
-  const attack = Number(formData.get("attack"));
-  const defense = Number(formData.get("defense"));
-  const speed = Number(formData.get("speed"));
-  const selectedWeapon = Number(formData.get("selectedWeapon"));
-  const battlePrompt = formData.get("battlePrompt")?.toString() || "";
+  const formValues = {
+    name: `Battle Bot #${Date.now()}`, // Generate a unique name
+    battlePrompt: formData.get("battlePrompt")?.toString() || "",
+    attributes: {
+      attack: Number(formData.get("attack")),
+      defense: Number(formData.get("defense")),
+      speed: Number(formData.get("speed")),
+      mainWeapon: Number(formData.get("selectedWeapon")),
+    },
+  };
 
-  // Validate required fields
-  if (!attack || !defense || !speed || !selectedWeapon) {
-    return new Response(JSON.stringify({ error: "All fields are required" }), {
-      status: 400,
-    });
-  }
-
-  // Validate battle prompt
-  if (!battlePrompt.trim()) {
+  // Validate with Zod schema
+  const result = BattleBotFormSchema.safeParse(formValues);
+  if (!result.success) {
     return new Response(
-      JSON.stringify({ error: "Battle prompt is required" }),
-      {
-        status: 400,
-      }
+      JSON.stringify({ error: result.error.issues[0].message }),
+      { status: 400 }
     );
   }
 
   // Validate total points used
+  const { attack, defense, speed } = result.data.attributes;
   const totalPoints = attack + defense + speed;
   if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
-    // Using 0.1 tolerance due to floating point arithmetic
     return new Response(
       JSON.stringify({
         error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`,
       }),
-      {
-        status: 400,
-      }
+      { status: 400 }
     );
   }
 
@@ -98,8 +94,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     Attack: attack,
     Defense: defense,
     Speed: speed,
-    weaponChoice: selectedWeapon,
-    prompt: battlePrompt,
+    weaponChoice: result.data.attributes.mainWeapon,
+    prompt: result.data.battlePrompt,
   };
 
   try {

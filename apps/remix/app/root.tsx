@@ -11,6 +11,7 @@ import {
 } from "@remix-run/react";
 import { Toaster } from "sonner";
 import { base } from "viem/chains";
+import { Navigation } from "./components/Navigation";
 import { toastConfig } from "./utils/toast";
 
 import "./tailwind.css";
@@ -44,16 +45,19 @@ export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
 
   return (
-    <html lang="en">
+    <html lang="en" className="bg-black">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
-      <body>
+      <body className="bg-black">
         <OnchainKitProvider apiKey={ENV.ONCHAINKIT_API_KEY} chain={base}>
-          <Outlet />
+          <Navigation />
+          <main className="pt-14">
+            <Outlet />
+          </main>
         </OnchainKitProvider>
         <Toaster {...toastConfig} />
         <ScrollRestoration />

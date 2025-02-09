@@ -1,8 +1,8 @@
-import { usePrivy } from "@privy-io/react-auth";
 import { Link } from "@remix-run/react";
+import { useAccount } from "wagmi";
 
 export default function Dashboard() {
-  const { user } = usePrivy();
+  const { address } = useAccount();
 
   return (
     <div className="min-h-screen bg-black text-white font-mono p-8">
@@ -10,7 +10,10 @@ export default function Dashboard() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-yellow-400 mb-4">
-            Welcome, Commander {user?.email?.address || "Anonymous"}
+            Welcome, Commander{" "}
+            {address
+              ? `${address.slice(0, 6)}...${address.slice(-4)}`
+              : "Anonymous"}
           </h1>
           <p className="text-gray-400">
             Your battle bot command center awaits. What would you like to do?
@@ -26,7 +29,10 @@ export default function Dashboard() {
             <h2 className="text-2xl font-bold text-green-400 mb-2">
               Create New Bot
             </h2>
-            <p className="text-gray-400">Design and deploy a new battle bot</p>
+            <p className="text-gray-400">
+              Create and customize your battle bot with unique weapons and
+              abilities
+            </p>
           </Link>
 
           <Link

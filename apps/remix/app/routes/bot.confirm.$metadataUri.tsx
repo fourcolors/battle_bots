@@ -9,7 +9,7 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useParams, useRouteLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import { encodeFunctionData, type Hex } from "viem";
-import { hardhat } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { useAccount } from "wagmi";
 import BattleBotABI from "../../../contract/artifacts/contracts/BattleBot.sol/BattleBot.json";
 import { Button } from "../components/ui/button";
@@ -90,7 +90,7 @@ export default function BotConfirm() {
               <div className="w-full">
                 {isConnected ? (
                   <Transaction
-                    chainId={hardhat.id}
+                    chainId={baseSepolia.id}
                     calls={[
                       {
                         to: rootData.ENV.BOT_CONTRACT_ADDRESS as Hex,

@@ -4,7 +4,7 @@ import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
 import { json, type ActionFunctionArgs } from "@remix-run/node";
-import { Form, useActionData } from "@remix-run/react";
+import { Form, useActionData, Link } from "@remix-run/react";
 import { useState } from "react";
 
 const weapons = [
@@ -79,9 +79,17 @@ export default function NewBot() {
   return (
     <div className="min-h-screen w-full bg-black text-white font-mono p-4 overflow-auto">
       <div className="container mx-auto">
-        <h1 className="text-4xl font-bold mb-6 text-center text-yellow-400 pixelated">
-          Battle Bot Builder
-        </h1>
+        <div className="flex items-center gap-4 mb-8">
+          <Link 
+            to=".."
+            className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            ← Back to Dashboard
+          </Link>
+          <h1 className="text-4xl font-bold text-yellow-400 pixelated">
+            Build Your Bot
+          </h1>
+        </div>
 
         {actionData?.success && (
           <div className="mb-4 p-4 bg-green-400/20 text-green-400 rounded-lg pixelated-border">

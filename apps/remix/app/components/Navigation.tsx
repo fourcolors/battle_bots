@@ -6,18 +6,21 @@ import {
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
 import { Link, useNavigate } from "@remix-run/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { base } from "viem/chains";
 import { useAccount } from "wagmi";
 
 export function Navigation() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
+  const wasConnected = useRef(isConnected);
 
   useEffect(() => {
-    if (!isConnected) {
+    // Only redirect if we were previously connected and now we're not
+    if (wasConnected.current && !isConnected) {
       navigate("/");
     }
+    wasConnected.current = isConnected;
   }, [isConnected, navigate]);
 
   if (!isConnected) {

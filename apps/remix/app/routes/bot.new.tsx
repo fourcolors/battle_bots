@@ -3,13 +3,13 @@ import { Input } from "@components/ui/input";
 import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
-import { type ActionFunctionArgs, json } from "@remix-run/node";
+import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import type { Weapon } from "~/types/weapons";
 import { toast } from "~/utils/toast";
 
-const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
+const SERVER_URL = process.env.SERVER_URL;
 
 export async function loader() {
   try {
@@ -18,10 +18,11 @@ export async function loader() {
       throw new Error("Failed to fetch weapons");
     }
     const data = await response.json();
-    return json({ weapons: data.weapons });
+    // Return raw object directly for better type inference
+    return { weapons: data.weapons };
   } catch (error) {
     console.error("Error loading weapons:", error);
-    return json({ weapons: [] });
+    return { weapons: [] };
   }
 }
 

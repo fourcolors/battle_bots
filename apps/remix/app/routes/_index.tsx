@@ -1,67 +1,40 @@
-import { MetaFunction, json, type LoaderFunctionArgs } from "@remix-run/node";
-import { useNavigate } from "@remix-run/react";
-import { ConnectWallet } from '@coinbase/onchainkit/wallet';
-import { useAccount, useDisconnect } from 'wagmi';
+import { Link } from "@remix-run/react";
 
-export const meta: MetaFunction = () => {
-  return [{ title: "Battle Bots · Connect Wallet" }];
-};
-
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  return json({});
-};
-
-export default function LoginPage() {
-  const navigate = useNavigate();
-  const { address } = useAccount();
-  const { disconnect } = useDisconnect();
-
+export default function Index() {
   return (
-    <main className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-md mx-auto text-center">
-        <h1 className="text-4xl font-bold text-yellow-400 mb-8">
-          Battle Bots
+    <div className="min-h-screen w-full bg-black text-white font-mono p-4">
+      <div className="container mx-auto text-center">
+        <h1 className="text-6xl font-bold mb-8 text-yellow-400 pixelated">
+          Battle Bots Arena
         </h1>
-        <p className="text-gray-400 mb-8">
-          {address 
-            ? "Your wallet is connected. Ready to build some agentic blockchain bots?" 
-            : "Connect your wallet to start building and battling agentic blockchain bots"
-          }
-        </p>
-        
-        <div className="space-y-4">
-          {/* Wallet Status */}
-          {address && (
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <p className="text-sm text-gray-400 mb-2">Connected Wallet</p>
-              <p className="font-mono text-green-400 mb-2">
-                {`${address.slice(0, 6)}...${address.slice(-4)}`}
-              </p>
-              <button
-                onClick={() => disconnect()}
-                className="text-red-400 text-sm hover:text-red-300"
-              >
-                Disconnect Wallet
-              </button>
-            </div>
-          )}
 
-          {/* Wallet Connection */}
-          <div className="bg-gray-900 p-6 rounded-lg flex justify-center items-center">
-            <ConnectWallet />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <Link
+            to="/bot/new"
+            className="block p-8 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors pixelated-border"
+          >
+            <h2 className="text-3xl font-bold mb-4 text-yellow-400">
+              Create Bot
+            </h2>
+            <p className="text-gray-400">
+              Build and customize your battle bot with unique weapons and
+              abilities
+            </p>
+          </Link>
 
-          {/* Enter Button */}
-          {address && (
-            <button
-              onClick={() => navigate("/battle-bot-builder")}
-              className="w-full bg-yellow-500 text-black px-6 py-4 rounded-lg font-bold hover:bg-yellow-400 transition-colors"
-            >
-              Enter Battle Bots →
-            </button>
-          )}
+          <Link
+            to="/game/new"
+            className="block p-8 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors pixelated-border"
+          >
+            <h2 className="text-3xl font-bold mb-4 text-yellow-400">
+              New Game
+            </h2>
+            <p className="text-gray-400">
+              Start a new battle and put your bot to the test
+            </p>
+          </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

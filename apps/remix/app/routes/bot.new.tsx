@@ -3,23 +3,33 @@ import { Input } from "@components/ui/input";
 import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
-import { type ActionFunctionArgs } from "@remix-run/node";
+import { type ActionFunctionArgs, json } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import type { Weapon } from '~/types/weapons';
-import { toast } from '~/utils/toast';
+import type { Weapon } from "~/types/weapons";
+import { toast } from "~/utils/toast";
+
+const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 
 export async function loader() {
-  const response = await fetch("/weapons");
-  const data = await response.json();
-  return { weapons: data.weapons };
+  try {
+    const response = await fetch(`${SERVER_URL}/weapons`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch weapons");
+    }
+    const data = await response.json();
+    return json({ weapons: data.weapons });
+  } catch (error) {
+    console.error("Error loading weapons:", error);
+    return json({ weapons: [] });
+  }
 }
 
 const MAX_POINTS = 10;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
-  
+
   // Get form values
   const attack = Number(formData.get("attack"));
   const defense = Number(formData.get("defense"));
@@ -37,17 +47,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Validate battle prompt
   if (!battlePrompt.trim()) {
-    return new Response(JSON.stringify({ error: "Battle prompt is required" }), {
-      status: 400,
-    });
+    return new Response(
+      JSON.stringify({ error: "Battle prompt is required" }),
+      {
+        status: 400,
+      }
+    );
   }
 
   // Validate total points used
   const totalPoints = attack + defense + speed;
-  if (Math.abs(totalPoints - MAX_POINTS) > 0.1) { // Using 0.1 tolerance due to floating point arithmetic
-    return new Response(JSON.stringify({ error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}` }), {
-      status: 400,
-    });
+  if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
+    // Using 0.1 tolerance due to floating point arithmetic
+    return new Response(
+      JSON.stringify({
+        error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`,
+      }),
+      {
+        status: 400,
+      }
+    );
   }
 
   // Only send user-configurable fields
@@ -61,7 +80,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   };
 
   try {
-    const response = await fetch("/registerBot", {
+    const response = await fetch(`${SERVER_URL}/registerBot`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -107,7 +126,7 @@ export default function NewBot() {
       toast.error(actionData.error);
     }
     if (actionData?.success) {
-      toast.success('Bot created successfully!');
+      toast.success("Bot created successfully!");
     }
   }, [actionData]);
 
@@ -115,7 +134,11 @@ export default function NewBot() {
   const remainingPoints = Number(MAX_POINTS - totalPoints).toFixed(1);
   const isMaxedOut = totalPoints >= MAX_POINTS;
 
-  const handleStatChange = (value: number, setter: (value: number) => void, currentValue: number) => {
+  const handleStatChange = (
+    value: number,
+    setter: (value: number) => void,
+    currentValue: number
+  ) => {
     const otherStats = totalPoints - currentValue;
     if (otherStats + value <= MAX_POINTS) {
       setter(Number(value.toFixed(1)));
@@ -133,7 +156,9 @@ export default function NewBot() {
     // Validate points allocation
     if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
       e.preventDefault();
-      toast.error(`You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`);
+      toast.error(
+        `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`
+      );
       return;
     }
 
@@ -142,9 +167,9 @@ export default function NewBot() {
     toast.promise(
       new Promise((resolve) => setTimeout(resolve, 1000)), // This will be replaced by the actual form submission
       {
-        loading: 'Creating your battle bot...',
-        success: 'Battle bot ready for combat!',
-        error: 'Failed to create battle bot',
+        loading: "Creating your battle bot...",
+        success: "Battle bot ready for combat!",
+        error: "Failed to create battle bot",
       }
     );
   };
@@ -152,23 +177,9 @@ export default function NewBot() {
   return (
     <div className="min-h-screen w-full bg-black text-white font-mono p-4 overflow-auto">
       <div className="container mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Link 
-            to=".."
-            className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-4xl font-bold text-yellow-400 pixelated">
-            Build Your Bot
-          </h1>
-        </div>
-
-        {actionData?.success && (
-          <div className="mb-4 p-4 bg-green-400/20 text-green-400 rounded-lg pixelated-border">
-            Bot created successfully!
-          </div>
-        )}
+        <h1 className="text-4xl font-bold mb-6 text-center text-yellow-400 pixelated">
+          Battle Bot Builder
+        </h1>
 
         <Form method="post" className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-gray-900 p-6 rounded-lg pixelated-border">
@@ -218,8 +229,13 @@ export default function NewBot() {
             <div className="space-y-6 bg-gray-800 p-4 rounded-lg pixelated-border">
               <div className="mb-4 text-center">
                 <p className="text-sm text-gray-400">Points System</p>
-                <p className="text-xs text-gray-500 mt-1">Allocate up to {MAX_POINTS} points across Attack, Defense, and Speed</p>
-                <p className={`text-lg font-bold mt-2 ${Number(remainingPoints) < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                <p className="text-xs text-gray-500 mt-1">
+                  Allocate up to {MAX_POINTS} points across Attack, Defense, and
+                  Speed
+                </p>
+                <p
+                  className={`text-lg font-bold mt-2 ${Number(remainingPoints) < 0 ? "text-red-400" : "text-green-400"}`}
+                >
                   {remainingPoints} points remaining
                 </p>
               </div>
@@ -240,7 +256,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[attack]}
-                  onValueChange={(value) => handleStatChange(value[0], setAttack, attack)}
+                  onValueChange={(value) =>
+                    handleStatChange(value[0], setAttack, attack)
+                  }
                   className="my-2"
                   disabled={isMaxedOut && attack <= 2}
                 />
@@ -256,7 +274,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[defense]}
-                  onValueChange={(value) => handleStatChange(value[0], setDefense, defense)}
+                  onValueChange={(value) =>
+                    handleStatChange(value[0], setDefense, defense)
+                  }
                   className="my-2"
                   disabled={isMaxedOut && defense <= 2}
                 />
@@ -272,7 +292,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[speed]}
-                  onValueChange={(value) => handleStatChange(value[0], setSpeed, speed)}
+                  onValueChange={(value) =>
+                    handleStatChange(value[0], setSpeed, speed)
+                  }
                   className="my-2"
                   disabled={isMaxedOut && speed <= 2}
                 />
@@ -317,7 +339,10 @@ export default function NewBot() {
                 {weapons.find((w: Weapon) => w.id === selectedWeapon)?.name}
               </h3>
               <p className="text-sm text-white">
-                {weapons.find((w: Weapon) => w.id === selectedWeapon)?.description}
+                {
+                  weapons.find((w: Weapon) => w.id === selectedWeapon)
+                    ?.description
+                }
               </p>
             </div>
           </div>

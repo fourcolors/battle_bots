@@ -3,7 +3,7 @@ import { Input } from "@components/ui/input";
 import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
-import { json, type ActionFunctionArgs } from "@remix-run/node";
+import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData } from "@remix-run/react";
 import { useState } from "react";
 
@@ -45,32 +45,86 @@ const weapons = [
   },
 ];
 
+const MAX_POINTS = 10;
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
+  
+  // Get form values
+  const attack = Number(formData.get("attack"));
+  const defense = Number(formData.get("defense"));
+  const speed = Number(formData.get("speed"));
+  const fuel = Number(formData.get("fuel"));
+  const selectedWeapon = Number(formData.get("selectedWeapon"));
+  const battlePrompt = formData.get("battlePrompt")?.toString() || "";
+
+  // Validate required fields
+  if (!attack || !defense || !speed || !fuel || !selectedWeapon) {
+    return new Response(JSON.stringify({ error: "All fields are required" }), {
+      status: 400,
+    });
+  }
+
+  // Only send user-configurable fields
   const botData = {
-    battlePrompt: formData.get("battlePrompt"),
-    attack: formData.get("attack"),
-    defense: formData.get("defense"),
-    speed: formData.get("speed"),
-    fuel: formData.get("fuel"),
-    wager: formData.get("wager"),
-    selectedWeapon: formData.get("selectedWeapon"),
+    Attack: attack,
+    Defense: defense,
+    Speed: speed,
+    Fuel: fuel,
+    weaponChoice: selectedWeapon,
+    prompt: battlePrompt,
   };
 
-  // TODO: Add validation and bot creation logic
-  return json({ success: true, data: botData });
+  try {
+    const response = await fetch("/registerBot", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        bot: botData,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: response.status,
+      });
+    }
+
+    const result = await response.json();
+    return new Response(JSON.stringify({ success: true, data: result }), {
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: "Failed to register bot" }), {
+      status: 500,
+    });
+  }
 };
 
 export default function NewBot() {
   const actionData = useActionData<typeof action>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [battlePrompt, setBattlePrompt] = useState("");
-  const [attack, setAttack] = useState(3);
-  const [defense, setDefense] = useState(3);
-  const [speed, setSpeed] = useState(3);
+  const [attack, setAttack] = useState(2);
+  const [defense, setDefense] = useState(2);
+  const [speed, setSpeed] = useState(2);
   const [fuel, setFuel] = useState("");
   const [wager, setWager] = useState("");
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
+
+  const totalPoints = attack + defense + speed;
+  const remainingPoints = Number(MAX_POINTS - totalPoints).toFixed(1);
+  const isMaxedOut = totalPoints >= MAX_POINTS;
+
+  const handleStatChange = (value: number, setter: (value: number) => void, currentValue: number) => {
+    const otherStats = totalPoints - currentValue;
+    if (otherStats + value <= MAX_POINTS) {
+      setter(Number(value.toFixed(1)));
+    }
+  };
 
   const handleSubmit = () => {
     setIsSubmitting(true);
@@ -135,6 +189,14 @@ export default function NewBot() {
             </div>
 
             <div className="space-y-6 bg-gray-800 p-4 rounded-lg pixelated-border">
+              <div className="mb-4 text-center">
+                <p className="text-sm text-gray-400">Points System</p>
+                <p className="text-xs text-gray-500 mt-1">Allocate up to {MAX_POINTS} points across Attack, Defense, and Speed</p>
+                <p className={`text-lg font-bold mt-2 ${Number(remainingPoints) < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {remainingPoints} points remaining
+                </p>
+              </div>
+
               <input type="hidden" name="attack" value={attack} />
               <input type="hidden" name="defense" value={defense} />
               <input type="hidden" name="speed" value={speed} />
@@ -151,8 +213,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[attack]}
-                  onValueChange={(value) => setAttack(value[0])}
+                  onValueChange={(value) => handleStatChange(value[0], setAttack, attack)}
                   className="my-2"
+                  disabled={isMaxedOut && attack <= 2}
                 />
                 <span className="text-lg font-semibold text-blue-400">
                   {attack.toFixed(1)}
@@ -166,8 +229,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[defense]}
-                  onValueChange={(value) => setDefense(value[0])}
+                  onValueChange={(value) => handleStatChange(value[0], setDefense, defense)}
                   className="my-2"
+                  disabled={isMaxedOut && defense <= 2}
                 />
                 <span className="text-lg font-semibold text-yellow-400">
                   {defense.toFixed(1)}
@@ -181,8 +245,9 @@ export default function NewBot() {
                   max={4}
                   step={0.1}
                   value={[speed]}
-                  onValueChange={(value) => setSpeed(value[0])}
+                  onValueChange={(value) => handleStatChange(value[0], setSpeed, speed)}
                   className="my-2"
+                  disabled={isMaxedOut && speed <= 2}
                 />
                 <span className="text-lg font-semibold text-green-400">
                   {speed.toFixed(1)}

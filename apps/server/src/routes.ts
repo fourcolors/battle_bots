@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { ContractWrapper } from "./contract/contractWrapper";
-import { games, GameState, BotState } from "./memoryState";
-import {
-  performAttack,
-  performMove,
-  performRotate
-} from "./gameLogic";
 import { IContractWrapper } from "./contract/IContractWrapper";
 import { getContractWrapper } from "./contract/getContractWrapper";
+import {
+    performAttack,
+    performMove,
+    performRotate
+} from "./gameLogic";
+import { games, GameState } from "./memoryState";
+import { WeaponService } from "./weapons/service";
 
 const router = Router();
 const contractWrapper: IContractWrapper = getContractWrapper(); // Dependency Injection
@@ -318,5 +318,32 @@ router.post("/finishGame", async (req, res) => {
   }
 });
 
+// --- Endpoint: Get Available Weapons ---
+router.get("/weapons", (req, res) => {
+  try {
+    const weapons = WeaponService.getAllWeapons();
+    return res.json({ weapons });
+  } catch (err: any) {
+    console.error("Error fetching weapons:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Endpoint: Get Weapon Details ---
+router.get("/weapons/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const weapon = WeaponService.getWeaponById(id);
+    
+    if (!weapon) {
+      return res.status(404).json({ error: "Weapon not found" });
+    }
+
+    return res.json({ weapon });
+  } catch (err: any) {
+    console.error("Error fetching weapon:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 export default router;

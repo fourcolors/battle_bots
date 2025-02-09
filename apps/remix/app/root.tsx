@@ -3,7 +3,6 @@ import "@coinbase/onchainkit/styles.css";
 import type { LinksFunction } from "@remix-run/node";
 import {
   Links,
-  LiveReload,
   Meta,
   Outlet,
   Scripts,
@@ -38,9 +37,14 @@ export const loader = () => {
   const GAME_SERVER_URL = process.env.GAME_SERVER_URL || DEFAULT_GAME_SERVER;
   const ONCHAINKIT_API_KEY = process.env.ONCHAINKIT_API_KEY;
   const CHAIN = process.env.CHAIN || "hardhat";
+  const BOT_CONTRACT_ADDRESS = process.env.BOT_CONTRACT_ADDRESS;
 
   if (!ONCHAINKIT_API_KEY) {
     throw new Error("ONCHAINKIT_API_KEY is required");
+  }
+
+  if (!BOT_CONTRACT_ADDRESS) {
+    throw new Error("BOT_CONTRACT_ADDRESS is required");
   }
 
   return {
@@ -48,6 +52,7 @@ export const loader = () => {
       GAME_SERVER_URL,
       ONCHAINKIT_API_KEY,
       CHAIN,
+      BOT_CONTRACT_ADDRESS,
     },
   };
 };
@@ -86,7 +91,6 @@ export default function App() {
         <Toaster {...toastConfig} />
         <ScrollRestoration />
         <Scripts />
-        <LiveReload />
       </body>
     </html>
   );

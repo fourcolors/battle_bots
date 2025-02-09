@@ -5,24 +5,21 @@ const MIN_NAME_LENGTH = 3;
 const MAX_NAME_LENGTH = 50;
 const MIN_PROMPT_LENGTH = 10;
 const MAX_PROMPT_LENGTH = 500;
-const MIN_STAT_VALUE = 1;
-const MAX_STAT_VALUE = 100;
+const MIN_STAT_VALUE = 2;
+const MAX_STAT_VALUE = 4;
 
 // Attributes schema
 export const BattleBotAttributesSchema = z.object({
   attack: z
     .number()
-    .int()
     .min(MIN_STAT_VALUE, `Attack must be at least ${MIN_STAT_VALUE}`)
     .max(MAX_STAT_VALUE, `Attack cannot exceed ${MAX_STAT_VALUE}`),
   defense: z
     .number()
-    .int()
     .min(MIN_STAT_VALUE, `Defense must be at least ${MIN_STAT_VALUE}`)
     .max(MAX_STAT_VALUE, `Defense cannot exceed ${MAX_STAT_VALUE}`),
   speed: z
     .number()
-    .int()
     .min(MIN_STAT_VALUE, `Speed must be at least ${MIN_STAT_VALUE}`)
     .max(MAX_STAT_VALUE, `Speed cannot exceed ${MAX_STAT_VALUE}`),
   mainWeapon: z.number().int().min(1, "Must select a weapon"),

@@ -1,13 +1,12 @@
+import { type ActionFunctionArgs, redirect } from "@remix-run/node";
 import {
-  Transaction,
-  TransactionButton,
-} from "@coinbase/onchainkit/transaction";
-import { type ActionFunctionArgs } from "@remix-run/node";
-import { Form, useActionData, useLoaderData } from "@remix-run/react";
+  Form,
+  useActionData,
+  useLoaderData,
+  useRouteLoaderData,
+} from "@remix-run/react";
 import { useEffect, useState } from "react";
-import { encodeFunctionData, type Hex } from "viem";
-import { hardhat } from "viem/chains";
-import BattleBotABI from "../../../contract/artifacts/contracts/BattleBot.sol/BattleBot.json";
+import { type z } from "zod";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -57,114 +56,116 @@ export async function loader() {
 
 const MAX_POINTS = 10;
 
+type ActionData = { error: string; details?: z.ZodIssue[] } | undefined;
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const BOT_CONTRACT_ADDRESS = process.env.BOT_CONTRACT_ADDRESS;
 
   if (!BOT_CONTRACT_ADDRESS) {
-    return new Response(
-      JSON.stringify({ error: "Bot contract address not configured" }),
-      { status: 500 }
-    );
+    return { error: "Bot contract address not configured" };
   }
 
   const formData = await request.formData();
-
   // Get form values
   const formValues = {
     name: formData.get("name")?.toString() || "",
     battlePrompt: formData.get("battlePrompt")?.toString() || "",
     attributes: {
-      attack: Number(formData.get("attack")),
-      defense: Number(formData.get("defense")),
-      speed: Number(formData.get("speed")),
+      attack: Math.round(Number(formData.get("attack"))),
+      defense: Math.round(Number(formData.get("defense"))),
+      speed: Math.round(Number(formData.get("speed"))),
       mainWeapon: Number(formData.get("selectedWeapon")),
     },
   };
 
+  // Validate required fields
+  if (!formValues.name.trim()) {
+    return {
+      error: "Bot name is required",
+    };
+  }
+
+  if (!formValues.battlePrompt.trim()) {
+    return { error: "Battle prompt is required" };
+  }
+
+  // Validate total points
+  const { attack, defense, speed } = formValues.attributes;
+  const totalPoints = attack + defense + speed;
+  if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
+    return {
+      error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(
+        1
+      )}`,
+    };
+  }
+
   // Validate with Zod schema
   const result = BattleBotFormSchema.safeParse(formValues);
   if (!result.success) {
-    return new Response(
-      JSON.stringify({ error: result.error.issues[0].message }),
-      { status: 400 }
-    );
-  }
-
-  // Validate total points used
-  const { attack, defense, speed } = result.data.attributes;
-  const totalPoints = attack + defense + speed;
-  if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
-    return new Response(
-      JSON.stringify({
-        error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`,
-      }),
-      { status: 400 }
-    );
+    console.error("Validation errors:", result.error.issues);
+    return {
+      error: result.error.issues[0].message,
+      details: result.error.issues,
+    };
   }
 
   try {
-    // Prepare metadata for IPFS
     const metadata: BattleBotMetadataSchemaType = {
       version: 1,
       ...result.data,
       image:
-        "ipfs://bafkreid6dtqhlpdvkozefzfi6nor6hite22dvcuafjzbasxwoajvckfdli", // Updated with actual image CID from IPFS
+        "ipfs://bafkreid6dtqhlpdvkozefzfi6nor6hite22dvcuafjzbasxwoajvckfdli",
     };
 
     const metadataUri = await uploadToIPFS(metadata);
     console.log("Metadata uploaded to IPFS:", metadataUri);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        metadataUri, // Include the URI in the response
-      }),
-      {
-        status: 200,
-      }
-    );
+    // Redirect to confirmation page
+    return redirect(`/bot/confirm/${encodeURIComponent(metadataUri)}`);
   } catch (error) {
     console.error("Error creating bot:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to create bot metadata" }),
-      {
-        status: 500,
-      }
-    );
+    return {
+      error: "Failed to create bot metadata",
+    };
   }
 };
 
 export default function NewBot() {
   const { weapons, error } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const rootData = useRouteLoaderData("root") as {
+    ENV: { BOT_CONTRACT_ADDRESS: string };
+  };
+  const actionData = useActionData<ActionData>();
   const [name, setName] = useState("");
   const [battlePrompt, setBattlePrompt] = useState("");
   const [attack, setAttack] = useState(2);
   const [defense, setDefense] = useState(2);
   const [speed, setSpeed] = useState(2);
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
-  const [metadataUri, setMetadataUri] = useState<string>("");
-  const [isMinting, setIsMinting] = useState(false);
 
-  // Show loader error in toast
+  // Show errors in toast
   useEffect(() => {
     if (error) {
       toast.error(error);
     }
-  }, [error]);
-
-  // Show action data errors/success in toast
-  useEffect(() => {
     if (actionData?.error) {
       toast.error(actionData.error);
+      // Show additional validation details if available
+      if (actionData.details) {
+        actionData.details.forEach((issue: z.ZodIssue) => {
+          toast.error(`${issue.path.join(".")}: ${issue.message}`);
+        });
+      }
     }
-    if (actionData?.success) {
-      toast.success("Bot created successfully!");
-      // Set the metadata URI for minting
-      setMetadataUri(actionData.metadataUri);
+  }, [error, actionData]);
+
+  // Add contract address validation
+  useEffect(() => {
+    if (!rootData?.ENV?.BOT_CONTRACT_ADDRESS) {
+      toast.error("Contract address not configured");
     }
-  }, [actionData]);
+  }, [rootData]);
 
   const totalPoints = attack + defense + speed;
   const remainingPoints = Number(MAX_POINTS - totalPoints).toFixed(1);
@@ -181,48 +182,16 @@ export default function NewBot() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate name
-    if (!name.trim()) {
-      toast.error("Bot name is required");
-      return;
-    }
-
-    // Validate battle prompt
-    if (!battlePrompt.trim()) {
-      toast.error("Battle prompt is required");
-      return;
-    }
-
-    // Validate points allocation
-    if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
-      toast.error(
-        `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`
-      );
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const form = e.target as HTMLFormElement;
-      await form.submit();
-    } catch (error) {
-      toast.error("Failed to create bot");
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-black text-white font-mono p-4 overflow-auto">
       <div className="container mx-auto">
-        <h1 className="text-4xl font-bold mb-6 text-center text-yellow-400 pixelated">
-          Battle Bot Builder
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold text-yellow-400 pixelated">
+            Battle Bot Builder
+          </h1>
+        </div>
 
-        <Form method="post" className="space-y-8" onSubmit={handleSubmit}>
+        <Form method="post" className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-gray-900 p-6 rounded-lg pixelated-border">
             <div className="md:col-span-2 space-y-6">
               <div className="space-y-4">
@@ -257,7 +226,11 @@ export default function NewBot() {
                   Speed
                 </p>
                 <p
-                  className={`text-lg font-bold mt-2 ${Number(remainingPoints) < 0 ? "text-red-400" : "text-green-400"}`}
+                  className={`text-lg font-bold mt-2 ${
+                    Number(remainingPoints) < 0
+                      ? "text-red-400"
+                      : "text-green-400"
+                  }`}
                 >
                   {remainingPoints} points remaining
                 </p>
@@ -387,77 +360,12 @@ export default function NewBot() {
             />
             <Button
               type="submit"
-              disabled={isSubmitting}
               className="w-full py-4 text-xl font-bold bg-yellow-400 hover:bg-yellow-500 text-black transition-colors duration-200"
             >
-              {isSubmitting ? "CREATING BATTLE BOT..." : "CREATE BATTLE BOT"}
+              CONFIRM BOT
             </Button>
           </div>
         </Form>
-
-        {metadataUri && (
-          <div className="mt-8 bg-gray-900 p-6 rounded-lg pixelated-border">
-            <Transaction
-              chainId={hardhat.id}
-              calls={[
-                {
-                  to: process.env.BOT_CONTRACT_ADDRESS as Hex,
-                  data: encodeFunctionData({
-                    abi: BattleBotABI.abi,
-                    functionName: "mintBot",
-                    args: [metadataUri],
-                  }),
-                },
-              ]}
-              onSuccess={(receipts) => {
-                setIsMinting(false);
-                toast.success("Bot minted successfully!");
-                setMetadataUri(""); // Reset after successful mint
-                console.log("Transaction receipts:", receipts);
-              }}
-              onError={(error) => {
-                setIsMinting(false);
-                toast.error("Failed to mint bot: " + error.message);
-              }}
-              onStatus={(status) => {
-                console.log("Transaction status:", status);
-                switch (status.statusName) {
-                  case "init":
-                  case "buildingTransaction":
-                  case "transactionPending":
-                    setIsMinting(true);
-                    break;
-                  case "success":
-                  case "error":
-                    setIsMinting(false);
-                    break;
-                }
-              }}
-            >
-              <div className="flex flex-col items-center space-y-4">
-                <img
-                  src="https://robohash.org/battlebot?set=set1&size=256x256"
-                  alt="Battle Bot Preview"
-                  className="w-32 h-32 pixelated"
-                />
-                <h3 className="text-xl font-bold text-yellow-400">
-                  {isMinting
-                    ? "Minting Your Battle Bot..."
-                    : "Mint Your Battle Bot"}
-                </h3>
-                <TransactionButton
-                  text={isMinting ? "Minting..." : "Mint Battle Bot"}
-                  className="w-full py-4 text-xl font-bold bg-yellow-400 hover:bg-yellow-500 text-black transition-colors duration-200 rounded-lg"
-                />
-                {isMinting && (
-                  <div className="animate-pulse text-sm text-gray-400">
-                    Please confirm the transaction in your wallet
-                  </div>
-                )}
-              </div>
-            </Transaction>
-          </div>
-        )}
       </div>
     </div>
   );

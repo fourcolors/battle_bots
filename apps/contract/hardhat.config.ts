@@ -1,7 +1,5 @@
-import { HardhatUserConfig } from "hardhat/config";
-import { task } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import { vars } from "hardhat/config";
+import { HardhatUserConfig, vars } from "hardhat/config";
 
 // Go to https://infura.io, sign up, create a new API key
 // in its dashboard, and store it as the "INFURA_API_KEY"

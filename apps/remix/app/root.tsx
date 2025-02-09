@@ -1,21 +1,17 @@
-import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
+import { OnchainKitProvider } from "@coinbase/onchainkit";
+import "@coinbase/onchainkit/styles.css";
 import type { LinksFunction } from "@remix-run/node";
 import {
-    Links,
-    Meta,
-    Outlet,
-    Scripts,
-    ScrollRestoration,
-    useLoaderData,
-    useNavigate,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
-import { useEffect } from 'react';
-import { Toaster } from 'sonner';
-import { toastConfig } from './utils/toast';
-import type { LinksFunction } from "@remix-run/node";
-import { OnchainKitProvider } from '@coinbase/onchainkit';
-import { base } from 'viem/chains';
-import '@coinbase/onchainkit/styles.css';
+import { Toaster } from "sonner";
+import { base } from "viem/chains";
+import { toastConfig } from "./utils/toast";
 
 import "./tailwind.css";
 
@@ -38,14 +34,15 @@ export const links: LinksFunction = () => [
 export const loader = () => {
   return {
     ENV: {
-      ONCHAINKIT_API_KEY: "liSnUM_Ngr62kqupe50h6QDZPje8i1zg"
-    }
+      ONCHAINKIT_API_KEY: "liSnUM_Ngr62kqupe50h6QDZPje8i1zg",
+      SERVER_URL: process.env.SERVER_URL,
+    },
   };
 };
 
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
-  
+
   return (
     <html lang="en">
       <head>

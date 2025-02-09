@@ -1,7 +1,15 @@
+import {
+  Transaction,
+  TransactionButton,
+} from "@coinbase/onchainkit/transaction";
 import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
+import { encodeFunctionData, type Hex } from "viem";
+import { hardhat } from "viem/chains";
+import BattleBotABI from "../../../contract/artifacts/contracts/BattleBot.sol/BattleBot.json";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Slider } from "../components/ui/slider";
 import { Textarea } from "../components/ui/textarea";
@@ -13,15 +21,15 @@ import type { Weapon } from "../types/weapons";
 import { uploadToIPFS } from "../utils/ipfs.server";
 import { toast } from "../utils/toast";
 
-// Default to localhost:3000 if SERVER_URL is not set
-const DEFAULT_SERVER_URL = "http://localhost:3000";
+// Default to localhost:3000 if GAME_SERVER_URL is not set
+const DEFAULT_GAME_SERVER = "http://localhost:3000";
 
 export async function loader() {
-  const SERVER_URL = process.env.SERVER_URL || DEFAULT_SERVER_URL;
-  console.log("Fetching weapons from:", SERVER_URL); // Debug log
+  const GAME_SERVER_URL = process.env.GAME_SERVER_URL || DEFAULT_GAME_SERVER;
+  console.log("Fetching weapons from:", GAME_SERVER_URL); // Debug log
 
   try {
-    const response = await fetch(`${SERVER_URL}/weapons`);
+    const response = await fetch(`${GAME_SERVER_URL}/weapons`);
     if (!response.ok) {
       console.error(
         "Server response not ok:",
@@ -50,10 +58,11 @@ export async function loader() {
 const MAX_POINTS = 10;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const SERVER_URL = process.env.SERVER_URL;
-  if (!SERVER_URL) {
+  const BOT_CONTRACT_ADDRESS = process.env.BOT_CONTRACT_ADDRESS;
+
+  if (!BOT_CONTRACT_ADDRESS) {
     return new Response(
-      JSON.stringify({ error: "Server URL not configured" }),
+      JSON.stringify({ error: "Bot contract address not configured" }),
       { status: 500 }
     );
   }
@@ -62,7 +71,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Get form values
   const formValues = {
-    name: `Battle Bot #${Date.now()}`, // Generate a unique name
+    name: formData.get("name")?.toString() || "",
     battlePrompt: formData.get("battlePrompt")?.toString() || "",
     attributes: {
       attack: Number(formData.get("attack")),
@@ -98,45 +107,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const metadata: BattleBotMetadataSchemaType = {
       version: 1,
       ...result.data,
-      image: "ipfs://placeholder", // This will be replaced with actual image in the future
+      image:
+        "ipfs://bafkreid6dtqhlpdvkozefzfi6nor6hite22dvcuafjzbasxwoajvckfdli", // Updated with actual image CID from IPFS
     };
 
-    // Upload metadata to IPFS
     const metadataUri = await uploadToIPFS(metadata);
     console.log("Metadata uploaded to IPFS:", metadataUri);
 
-    // Only send user-configurable fields to the server
-    const botData = {
-      Attack: attack,
-      Defense: defense,
-      Speed: speed,
-      weaponChoice: result.data.attributes.mainWeapon,
-      prompt: result.data.battlePrompt,
-      metadataUri, // Add the IPFS URI
-    };
-
-    const response = await fetch(`${SERVER_URL}/registerBot`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        bot: botData,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: response.status,
-      });
-    }
-
-    const data = await response.json();
     return new Response(
       JSON.stringify({
         success: true,
-        data,
         metadataUri, // Include the URI in the response
       }),
       {
@@ -145,9 +125,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (error) {
     console.error("Error creating bot:", error);
-    return new Response(JSON.stringify({ error: "Failed to create bot" }), {
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ error: "Failed to create bot metadata" }),
+      {
+        status: 500,
+      }
+    );
   }
 };
 
@@ -155,11 +138,14 @@ export default function NewBot() {
   const { weapons, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState("");
   const [battlePrompt, setBattlePrompt] = useState("");
   const [attack, setAttack] = useState(2);
   const [defense, setDefense] = useState(2);
   const [speed, setSpeed] = useState(2);
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
+  const [metadataUri, setMetadataUri] = useState<string>("");
+  const [isMinting, setIsMinting] = useState(false);
 
   // Show loader error in toast
   useEffect(() => {
@@ -175,6 +161,8 @@ export default function NewBot() {
     }
     if (actionData?.success) {
       toast.success("Bot created successfully!");
+      // Set the metadata URI for minting
+      setMetadataUri(actionData.metadataUri);
     }
   }, [actionData]);
 
@@ -193,17 +181,23 @@ export default function NewBot() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate name
+    if (!name.trim()) {
+      toast.error("Bot name is required");
+      return;
+    }
+
     // Validate battle prompt
     if (!battlePrompt.trim()) {
-      e.preventDefault();
       toast.error("Battle prompt is required");
       return;
     }
 
     // Validate points allocation
     if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
-      e.preventDefault();
       toast.error(
         `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`
       );
@@ -211,15 +205,14 @@ export default function NewBot() {
     }
 
     setIsSubmitting(true);
-    // Show loading toast while submitting
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 1000)), // This will be replaced by the actual form submission
-      {
-        loading: "Creating your battle bot...",
-        success: "Battle bot ready for combat!",
-        error: "Failed to create battle bot",
-      }
-    );
+
+    try {
+      const form = e.target as HTMLFormElement;
+      await form.submit();
+    } catch (error) {
+      toast.error("Failed to create bot");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -232,6 +225,19 @@ export default function NewBot() {
         <Form method="post" className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-gray-900 p-6 rounded-lg pixelated-border">
             <div className="md:col-span-2 space-y-6">
+              <div className="space-y-4">
+                <Label htmlFor="name" className="text-xl text-blue-400">
+                  Bot Name
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your bot's name..."
+                  className="w-full text-lg p-4 bg-gray-800 border-gray-700 text-blue-400"
+                />
+              </div>
               <div className="relative w-full h-96 border-4 border-gray-700 rounded-lg flex items-center justify-center bg-gray-800 pixelated-border">
                 <img
                   src="https://robohash.org/battlebot?set=set1&size=256x256"
@@ -388,6 +394,70 @@ export default function NewBot() {
             </Button>
           </div>
         </Form>
+
+        {metadataUri && (
+          <div className="mt-8 bg-gray-900 p-6 rounded-lg pixelated-border">
+            <Transaction
+              chainId={hardhat.id}
+              calls={[
+                {
+                  to: process.env.BOT_CONTRACT_ADDRESS as Hex,
+                  data: encodeFunctionData({
+                    abi: BattleBotABI.abi,
+                    functionName: "mintBot",
+                    args: [metadataUri],
+                  }),
+                },
+              ]}
+              onSuccess={(receipts) => {
+                setIsMinting(false);
+                toast.success("Bot minted successfully!");
+                setMetadataUri(""); // Reset after successful mint
+                console.log("Transaction receipts:", receipts);
+              }}
+              onError={(error) => {
+                setIsMinting(false);
+                toast.error("Failed to mint bot: " + error.message);
+              }}
+              onStatus={(status) => {
+                console.log("Transaction status:", status);
+                switch (status.statusName) {
+                  case "init":
+                  case "buildingTransaction":
+                  case "transactionPending":
+                    setIsMinting(true);
+                    break;
+                  case "success":
+                  case "error":
+                    setIsMinting(false);
+                    break;
+                }
+              }}
+            >
+              <div className="flex flex-col items-center space-y-4">
+                <img
+                  src="https://robohash.org/battlebot?set=set1&size=256x256"
+                  alt="Battle Bot Preview"
+                  className="w-32 h-32 pixelated"
+                />
+                <h3 className="text-xl font-bold text-yellow-400">
+                  {isMinting
+                    ? "Minting Your Battle Bot..."
+                    : "Mint Your Battle Bot"}
+                </h3>
+                <TransactionButton
+                  text={isMinting ? "Minting..." : "Mint Battle Bot"}
+                  className="w-full py-4 text-xl font-bold bg-yellow-400 hover:bg-yellow-500 text-black transition-colors duration-200 rounded-lg"
+                />
+                {isMinting && (
+                  <div className="animate-pulse text-sm text-gray-400">
+                    Please confirm the transaction in your wallet
+                  </div>
+                )}
+              </div>
+            </Transaction>
+          </div>
+        )}
       </div>
     </div>
   );

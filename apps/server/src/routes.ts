@@ -76,6 +76,9 @@ router.post("/registerBot", async (req, res) => {
 // Processes the current bot's turn, and automatically skips over dead bots.
 router.post("/turn", async (req, res) => {
   const { gameId, botIndex, actions } = req.body;
+  console.log("Turn with body:", JSON.stringify(req.body, null, 2));
+  console.log("gameId type:", typeof req.body.gameId, "Value:", req.body.gameId);
+
   const game = games[gameId];
   if (!game || !game.isActive) {
     return res.status(400).json({ error: "Game not active or doesn't exist" });
@@ -171,8 +174,10 @@ router.post("/turn", async (req, res) => {
   // Auto-finish logic: if only one bot remains alive, settle the game.
   const aliveBots = game.bots.filter(b => b.HP > 0);
   if (aliveBots.length === 1) {
-    const winningBotIndex = game.bots.findIndex(b => b.HP > 0);
+    const winningBotIndex = aliveBots[0].botIndex;
     try {
+      console.log("gameId " + gameId.toString())
+      console.log("winningBotIndex " + winningBotIndex)
       await contractWrapper.finishGame(gameId, winningBotIndex);
       game.isActive = false;
       console.log(`Game ${gameId} auto-finished. Winning bot: ${winningBotIndex}`);

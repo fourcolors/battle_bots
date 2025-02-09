@@ -4,47 +4,16 @@ import { Label } from "@components/ui/label";
 import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
 import { type ActionFunctionArgs } from "@remix-run/node";
-import { Form, useActionData } from "@remix-run/react";
+import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
+import type { Weapon } from '~/types/weapons';
 import { toast } from '~/utils/toast';
 
-const weapons = [
-  {
-    id: 1,
-    name: "Laser",
-    src: "https://robohash.org/laser?set=set2&size=32x32",
-    description:
-      "A high-energy beam weapon. Excellent for precision strikes and can penetrate most armor types. Low cooldown but moderate energy consumption.",
-  },
-  {
-    id: 2,
-    name: "Missile",
-    src: "https://robohash.org/missile?set=set2&size=32x32",
-    description:
-      "Explosive projectile with tracking capabilities. High damage potential with area effect. Limited ammo capacity but devastating against grouped enemies.",
-  },
-  {
-    id: 3,
-    name: "Sword",
-    src: "https://robohash.org/sword?set=set2&size=32x32",
-    description:
-      "Energy-infused melee weapon. Requires close combat but deals consistent damage. Low energy consumption and can deflect incoming projectiles.",
-  },
-  {
-    id: 4,
-    name: "Flamethrower",
-    src: "https://robohash.org/flamethrower?set=set2&size=32x32",
-    description:
-      "Short-range but high damage over time. Effective against multiple opponents and can ignite flammable terrain. Consumes fuel rapidly.",
-  },
-  {
-    id: 5,
-    name: "Cannon",
-    src: "https://robohash.org/cannon?set=set2&size=32x32",
-    description:
-      "Heavy artillery with massive firepower. Slow rate of fire but deals enormous damage. Can destroy obstacles and has a long range.",
-  },
-];
+export async function loader() {
+  const response = await fetch("/weapons");
+  const data = await response.json();
+  return { weapons: data.weapons };
+}
 
 const MAX_POINTS = 10;
 
@@ -121,6 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function NewBot() {
+  const { weapons } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [battlePrompt, setBattlePrompt] = useState("");
@@ -318,7 +288,7 @@ export default function NewBot() {
               Weapons
             </h2>
             <div className="flex flex-wrap justify-center gap-4 mb-4">
-              {weapons.map((weapon) => (
+              {weapons.map((weapon: Weapon) => (
                 <button
                   key={weapon.id}
                   type="button"
@@ -330,7 +300,7 @@ export default function NewBot() {
                   }`}
                 >
                   <img
-                    src={weapon.src || "/placeholder.svg"}
+                    src={weapon.src}
                     alt={weapon.name}
                     width={32}
                     height={32}
@@ -344,10 +314,10 @@ export default function NewBot() {
             </div>
             <div className="bg-gray-800 p-4 rounded-lg pixelated-border h-[100px] overflow-y-auto">
               <h3 className="text-lg font-semibold mb-2 text-yellow-400">
-                {weapons.find((w) => w.id === selectedWeapon)?.name}
+                {weapons.find((w: Weapon) => w.id === selectedWeapon)?.name}
               </h3>
               <p className="text-sm text-white">
-                {weapons.find((w) => w.id === selectedWeapon)?.description}
+                {weapons.find((w: Weapon) => w.id === selectedWeapon)?.description}
               </p>
             </div>
           </div>

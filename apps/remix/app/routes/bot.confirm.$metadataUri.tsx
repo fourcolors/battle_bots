@@ -8,7 +8,7 @@ import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useParams, useRouteLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import { encodeFunctionData, type Hex } from "viem";
+import { encodeFunctionData, waitForTransactionReceipt } from "viem";
 import { baseSepolia } from "viem/chains";
 import { useAccount } from "wagmi";
 import BattleBotABI from "../../../contract/artifacts/contracts/BattleBot.sol/BattleBot.json";
@@ -41,6 +41,7 @@ export default function BotConfirm() {
   };
   const { isConnected } = useAccount();
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
 
   useEffect(() => {
     if (!rootData?.ENV?.BOT_CONTRACT_ADDRESS) {
@@ -93,7 +94,7 @@ export default function BotConfirm() {
                     chainId={baseSepolia.id}
                     calls={[
                       {
-                        to: rootData.ENV.BOT_CONTRACT_ADDRESS as Hex,
+                        to: rootData.ENV.BOT_CONTRACT_ADDRESS as `0x${string}`,
                         data: encodeFunctionData({
                           abi: BattleBotABI.abi,
                           functionName: "mintBot",
@@ -101,9 +102,33 @@ export default function BotConfirm() {
                         }),
                       },
                     ]}
-                    onSuccess={() => {
-                      toast.success("Bot minted successfully!");
-                      setIsSuccess(true);
+                    onSuccess={async (data) => {
+                      try {
+                        setIsMinting(true);
+                        const receipt = data.transactionReceipts[0];
+                        
+                        // Wait for transaction to be confirmed
+                        toast.loading("Waiting for transaction confirmation...");
+                        await waitForTransactionReceipt(publicClient, {
+                          hash: receipt.transactionHash,
+                        });
+
+                        // Add a small delay to allow for indexing
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                        toast.success("Battle Bot minted successfully!");
+                        setIsSuccess(true);
+                        
+                        // Redirect with both transaction hash and a refresh flag
+                        window.location.href = `/inventory?tx=${receipt.transactionHash}&refresh=true`;
+                      } catch (error) {
+                        console.error("Error confirming transaction:", error);
+                        toast.error("Error confirming transaction. Please check the explorer.");
+                        // Still redirect but indicate there might be an issue
+                        window.location.href = `/inventory?tx=${data.transactionReceipts[0].transactionHash}&status=pending`;
+                      } finally {
+                        setIsMinting(false);
+                      }
                     }}
                     onError={(error) => {
                       toast.error("Failed to mint bot: " + error.message);
@@ -111,8 +136,9 @@ export default function BotConfirm() {
                     }}
                   >
                     <TransactionButton
-                      text="Build Battle Bot"
-                      className="w-full py-4 text-xl font-bold bg-yellow-400 hover:bg-yellow-500 text-black transition-colors duration-200 rounded-lg"
+                      text={isMinting ? "Confirming..." : "Build Battle Bot"}
+                      disabled={isMinting}
+                      className="w-full py-4 text-xl font-bold bg-yellow-400 hover:bg-yellow-500 text-black transition-colors duration-200 rounded-lg disabled:opacity-50"
                     />
                     <TransactionStatus>
                       <TransactionStatusLabel className="text-center text-sm text-gray-400 mt-2" />

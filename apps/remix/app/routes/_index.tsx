@@ -8,7 +8,19 @@ export default function Index() {
           Battle Bots Arena
         </h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <Link
+            to="/dashboard"
+            className="block p-8 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors pixelated-border"
+          >
+            <h2 className="text-3xl font-bold mb-4 text-yellow-400">
+              Dashboard
+            </h2>
+            <p className="text-gray-400">
+              View your battle stats and manage your bots
+            </p>
+          </Link>
+
           <Link
             to="/bot/new"
             className="block p-8 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors pixelated-border"

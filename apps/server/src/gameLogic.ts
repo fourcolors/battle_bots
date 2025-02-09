@@ -4,61 +4,6 @@ import { WeaponService } from "./weapons/service";
 // Basic movement constants
 const BASE_MOVEMENT = 2; // each Move AP => (BASE_MOVEMENT + Speed) meters
 
-// Weapons configuration
-interface Weapon {
-  name: string;
-  rangeMin: number;
-  rangeMax: number;
-  damage: number;
-  special?: string;
-  apCost: number;
-  aoeRadius?: number; // for grenade
-  coneAngle?: number; // for flamethrower
-}
-
-// 0=Net,1=Gun,2=Grenade,3=Saw,4=Flame
-const Weapons: Weapon[] = [
-  {
-    name: "Net Launcher",
-    rangeMin: 5,
-    rangeMax: 7,
-    damage: 2,
-    special: "Immobilize",
-    apCost: 1
-  },
-  {
-    name: "Basic Gun",
-    rangeMin: 1,
-    rangeMax: 7,
-    damage: 3,
-    apCost: 1
-  },
-  {
-    name: "Grenade",
-    rangeMin: 5,
-    rangeMax: 7,
-    damage: 3,
-    apCost: 1,
-    aoeRadius: 2
-  },
-  {
-    name: "Saw Blade",
-    rangeMin: 0,
-    rangeMax: 1,
-    damage: 4,
-    apCost: 1,
-    special: "+1 if back attack"
-  },
-  {
-    name: "Flamethrower",
-    rangeMin: 1,
-    rangeMax: 3,
-    damage: 3,
-    apCost: 1,
-    coneAngle: 60
-  }
-];
-
 /**
  * Calculate Euclidean distance between two points
  */
@@ -167,7 +112,7 @@ export function performAttack(game: GameState, attackerId: number, defenderId: n
     attacker.damageDealt += damage;
   });
 
-  attacker.apConsumed += 1;
+  // AP consumption is now handled in routes.ts
   return true;
 }
 

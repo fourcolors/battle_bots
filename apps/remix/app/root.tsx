@@ -3,6 +3,7 @@ import "@coinbase/onchainkit/styles.css";
 import type { LinksFunction } from "@remix-run/node";
 import {
   Links,
+  LiveReload,
   Meta,
   Outlet,
   Scripts,
@@ -10,14 +11,11 @@ import {
   useLoaderData,
 } from "@remix-run/react";
 import { Toaster } from "sonner";
-import { base } from "viem/chains";
+import { base, hardhat } from "viem/chains";
 import { Navigation } from "./components/Navigation";
 import { toastConfig } from "./utils/toast";
 
 import "./tailwind.css";
-
-// Use Robohash URL for the logo
-const LOGO_URL = "https://robohash.org/battlebot?set=set1&size=256x256";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -32,17 +30,33 @@ export const links: LinksFunction = () => [
   },
 ];
 
+// Default values for environment variables
+const DEFAULT_GAME_SERVER = "http://localhost:3000";
+
 export const loader = () => {
+  // Validate and provide defaults for required environment variables
+  const GAME_SERVER_URL = process.env.GAME_SERVER_URL || DEFAULT_GAME_SERVER;
+  const ONCHAINKIT_API_KEY = process.env.ONCHAINKIT_API_KEY;
+  const CHAIN = process.env.CHAIN || "hardhat";
+
+  if (!ONCHAINKIT_API_KEY) {
+    throw new Error("ONCHAINKIT_API_KEY is required");
+  }
+
   return {
     ENV: {
-      ONCHAINKIT_API_KEY: "liSnUM_Ngr62kqupe50h6QDZPje8i1zg",
-      SERVER_URL: process.env.SERVER_URL,
+      GAME_SERVER_URL,
+      ONCHAINKIT_API_KEY,
+      CHAIN,
     },
   };
 };
 
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
+
+  // Select chain based on environment
+  const chain = ENV.CHAIN === "hardhat" ? hardhat : base;
 
   return (
     <html lang="en" className="bg-black">
@@ -53,7 +67,17 @@ export default function App() {
         <Links />
       </head>
       <body className="bg-black">
-        <OnchainKitProvider apiKey={ENV.ONCHAINKIT_API_KEY} chain={base}>
+        <OnchainKitProvider
+          apiKey={ENV.ONCHAINKIT_API_KEY}
+          chain={chain}
+          config={{
+            appearance: {
+              name: "Battle Bots",
+              mode: "dark",
+              theme: "cyberpunk",
+            },
+          }}
+        >
           <Navigation />
           <main className="pt-14">
             <Outlet />
@@ -62,6 +86,7 @@ export default function App() {
         <Toaster {...toastConfig} />
         <ScrollRestoration />
         <Scripts />
+        <LiveReload />
       </body>
     </html>
   );

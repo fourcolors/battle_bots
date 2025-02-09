@@ -20,6 +20,7 @@
     "@remix-run/node": "^2.15.3",
     "@remix-run/react": "^2.15.3",
     "@remix-run/serve": "^2.15.3",
+    "@wagmi/chains": "^1.8.0",
     "@web3modal/wagmi": "^5.1.11",
     "isbot": "^4.1.0",
     "lucide-react": "^0.474.0",

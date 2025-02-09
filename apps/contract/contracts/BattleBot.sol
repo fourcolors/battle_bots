@@ -7,6 +7,19 @@ import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/
 /**
  * @title BattleBot
  * @dev Simple NFT implementation for battle bots with metadata storage
+ * Metadata is stored on IPFS and should follow the format:
+ * {
+ *   "version": 1,
+ *   "name": "Battle Bot #1",
+ *   "battlePrompt": "A strategic combat AI that specializes in calculated strikes",
+ *   "image": "ipfs://...",
+ *   "attributes": {
+ *     "attack": 75,
+ *     "defense": 60,
+ *     "speed": 85,
+ *     "mainWeapon": 1
+ *   }
+ * }
  */
 contract BattleBot is ERC721URIStorage {
     // Counter for token IDs
@@ -43,7 +56,6 @@ contract BattleBot is ERC721URIStorage {
     }
 
     // The following functions are overrides required by Solidity.
-
     function supportsInterface(bytes4 interfaceId)
         public
         view

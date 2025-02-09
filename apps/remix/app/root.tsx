@@ -1,15 +1,17 @@
 import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
 import type { LinksFunction } from "@remix-run/node";
 import {
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-  useLoaderData,
-  useNavigate,
+    Links,
+    Meta,
+    Outlet,
+    Scripts,
+    ScrollRestoration,
+    useLoaderData,
+    useNavigate,
 } from "@remix-run/react";
 import { useEffect } from 'react';
+import { Toaster } from 'sonner';
+import { toastConfig } from './utils/toast';
 
 import "./tailwind.css";
 
@@ -40,6 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <Toaster {...toastConfig} />
         <ScrollRestoration />
         <Scripts />
       </body>

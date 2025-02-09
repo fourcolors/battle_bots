@@ -5,7 +5,8 @@ import { Slider } from "@components/ui/slider";
 import { Textarea } from "@components/ui/textarea";
 import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData } from "@remix-run/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from '~/utils/toast';
 
 const weapons = [
   {
@@ -65,6 +66,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
+  // Validate battle prompt
+  if (!battlePrompt.trim()) {
+    return new Response(JSON.stringify({ error: "Battle prompt is required" }), {
+      status: 400,
+    });
+  }
+
+  // Validate total points used
+  const totalPoints = attack + defense + speed;
+  if (Math.abs(totalPoints - MAX_POINTS) > 0.1) { // Using 0.1 tolerance due to floating point arithmetic
+    return new Response(JSON.stringify({ error: `You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}` }), {
+      status: 400,
+    });
+  }
+
   // Only send user-configurable fields
   const botData = {
     Attack: attack,
@@ -115,6 +131,16 @@ export default function NewBot() {
   const [wager, setWager] = useState("");
   const [selectedWeapon, setSelectedWeapon] = useState<number>(1);
 
+  // Show action data errors/success in toast
+  useEffect(() => {
+    if (actionData?.error) {
+      toast.error(actionData.error);
+    }
+    if (actionData?.success) {
+      toast.success('Bot created successfully!');
+    }
+  }, [actionData]);
+
   const totalPoints = attack + defense + speed;
   const remainingPoints = Number(MAX_POINTS - totalPoints).toFixed(1);
   const isMaxedOut = totalPoints >= MAX_POINTS;
@@ -126,8 +152,31 @@ export default function NewBot() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    // Validate battle prompt
+    if (!battlePrompt.trim()) {
+      e.preventDefault();
+      toast.error("Battle prompt is required");
+      return;
+    }
+
+    // Validate points allocation
+    if (Math.abs(totalPoints - MAX_POINTS) > 0.1) {
+      e.preventDefault();
+      toast.error(`You must use exactly ${MAX_POINTS} points. Currently using: ${totalPoints.toFixed(1)}`);
+      return;
+    }
+
     setIsSubmitting(true);
+    // Show loading toast while submitting
+    toast.promise(
+      new Promise((resolve) => setTimeout(resolve, 1000)), // This will be replaced by the actual form submission
+      {
+        loading: 'Creating your battle bot...',
+        success: 'Battle bot ready for combat!',
+        error: 'Failed to create battle bot',
+      }
+    );
   };
 
   return (
@@ -136,12 +185,6 @@ export default function NewBot() {
         <h1 className="text-4xl font-bold mb-6 text-center text-yellow-400 pixelated">
           Battle Bot Builder
         </h1>
-
-        {actionData?.success && (
-          <div className="mb-4 p-4 bg-green-400/20 text-green-400 rounded-lg pixelated-border">
-            Bot created successfully!
-          </div>
-        )}
 
         <Form method="post" className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-gray-900 p-6 rounded-lg pixelated-border">

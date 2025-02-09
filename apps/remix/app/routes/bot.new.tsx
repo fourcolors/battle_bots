@@ -1,21 +1,18 @@
-import { Button } from "@components/ui/button";
-import { Input } from "@components/ui/input";
-import { Label } from "@components/ui/label";
-import { Slider } from "@components/ui/slider";
-import { Textarea } from "@components/ui/textarea";
-import {
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from "@remix-run/node";
+import { type ActionFunctionArgs } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import type { Weapon } from "~/types/weapons";
-import { toast } from "~/utils/toast";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Slider } from "../components/ui/slider";
+import { Textarea } from "../components/ui/textarea";
+import type { Weapon } from "../types/weapons";
+import { toast } from "../utils/toast";
 
 // Default to localhost:3000 if SERVER_URL is not set
 const DEFAULT_SERVER_URL = "http://localhost:3000";
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader() {
   const SERVER_URL = process.env.SERVER_URL || DEFAULT_SERVER_URL;
   console.log("Fetching weapons from:", SERVER_URL); // Debug log
 

@@ -12,6 +12,10 @@ import {
 import { useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { toastConfig } from './utils/toast';
+import type { LinksFunction } from "@remix-run/node";
+import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { base } from 'viem/chains';
+import '@coinbase/onchainkit/styles.css';
 
 import "./tailwind.css";
 
@@ -31,7 +35,17 @@ export const links: LinksFunction = () => [
   },
 ];
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export const loader = () => {
+  return {
+    ENV: {
+      ONCHAINKIT_API_KEY: "liSnUM_Ngr62kqupe50h6QDZPje8i1zg"
+    }
+  };
+};
+
+export default function App() {
+  const { ENV } = useLoaderData<typeof loader>();
+  
   return (
     <html lang="en">
       <head>
@@ -41,67 +55,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        <OnchainKitProvider apiKey={ENV.ONCHAINKIT_API_KEY} chain={base}>
+          <Outlet />
+        </OnchainKitProvider>
         <Toaster {...toastConfig} />
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
-  );
-}
-
-export const loader = () => {
-  return {
-    ENV: {
-      PRIVY_APP_ID: process.env.PRIVY_APP_ID
-    }
-  };
-};
-
-function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated } = usePrivy();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!ready) return;
-    
-    if (authenticated) {
-      navigate('/bot/new');
-    } else {
-      navigate('/');
-    }
-  }, [ready, authenticated, navigate]);
-
-  // Show loading state while Privy is initializing
-  if (!ready) {
-    return <div>Loading...</div>;
-  }
-
-  return <>{children}</>;
-}
-
-export default function App() {
-  const { ENV } = useLoaderData<typeof loader>();
-  
-  return (
-    <PrivyProvider
-      appId={ENV.PRIVY_APP_ID || "cm6tjsr3g0037bdcuszt7wjhj"}
-      config={{
-        appearance: {
-          theme: 'light',
-          accentColor: '#676FFF',
-          logo: LOGO_URL,
-          showWalletLoginFirst: true,
-        },
-        embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-        },
-        loginMethods: ['wallet'],
-      }}
-    >
-      <AuthWrapper>
-        <Outlet />
-      </AuthWrapper>
-    </PrivyProvider>
   );
 }

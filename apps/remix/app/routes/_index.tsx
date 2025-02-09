@@ -1,63 +1,67 @@
-import { MetaFunction } from "@remix-run/node";
+import { MetaFunction, json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useNavigate } from "@remix-run/react";
-import { useLogin } from "@privy-io/react-auth";
-import Origin from "~/assets/origin.jpg";
-import { PrivyClient } from "@privy-io/server-auth";
+import { ConnectWallet } from '@coinbase/onchainkit/wallet';
+import { useAccount, useDisconnect } from 'wagmi';
 
 export const meta: MetaFunction = () => {
-  return [
-    { title: "Login · Privy" },
-  ];
+  return [{ title: "Battle Bots · Connect Wallet" }];
 };
 
-export const loader = async ({ request }) => {
-  const cookieHeader = request.headers.get("Cookie");
-  const cookieAuthToken = cookieHeader?.match(/privy-token=([^;]+)/)?.[1];
-
-  if (!cookieAuthToken) return {};
-
-  const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
-  const client = new PrivyClient(PRIVY_APP_ID!, PRIVY_APP_SECRET!);
-
-  try {
-    const claims = await client.verifyAuthToken(cookieAuthToken);
-    // Use this result to pass props to a page for server rendering or to drive redirects!
-    // ref https://nextjs.org/docs/pages/api-reference/functions/get-server-side-props
-    console.log({ claims });
-
-    return {
-      props: {},
-      redirect: { destination: "/dashboard", permanent: false },
-    };
-  } catch (error) {
-    return { props: {} };
-  }
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  return json({});
 };
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useLogin({
-    onComplete: () => navigate("/battle-bot-builder"),
-  });
+  const { address } = useAccount();
+  const { disconnect } = useDisconnect();
 
   return (
-    <>
-      <main className="flex min-h-screen min-w-full">
-        <div className="flex bg-privy-light-blue flex-1 p-4 sm:p-6 justify-center items-center">
-          <div className="flex flex-col items-center max-w-sm mx-auto w-full px-4">
-            <h1 className="text-3xl font-bold mb-8 text-gray-800">Battle Bots</h1>
-            <div className="mt-4 w-full">
+    <main className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-md mx-auto text-center">
+        <h1 className="text-4xl font-bold text-yellow-400 mb-8">
+          Battle Bots
+        </h1>
+        <p className="text-gray-400 mb-8">
+          {address 
+            ? "Your wallet is connected. Ready to build some agentic blockchain bots?" 
+            : "Connect your wallet to start building and battling agentic blockchain bots"
+          }
+        </p>
+        
+        <div className="space-y-4">
+          {/* Wallet Status */}
+          {address && (
+            <div className="bg-gray-800 p-4 rounded-lg">
+              <p className="text-sm text-gray-400 mb-2">Connected Wallet</p>
+              <p className="font-mono text-green-400 mb-2">
+                {`${address.slice(0, 6)}...${address.slice(-4)}`}
+              </p>
               <button
-                className="w-full bg-violet-600 hover:bg-violet-700 py-3 px-6 text-white rounded-lg"
-                onClick={login}
+                onClick={() => disconnect()}
+                className="text-red-400 text-sm hover:text-red-300"
               >
-                Log in
+                Disconnect Wallet
               </button>
             </div>
+          )}
+
+          {/* Wallet Connection */}
+          <div className="bg-gray-900 p-6 rounded-lg flex justify-center items-center">
+            <ConnectWallet />
           </div>
+
+          {/* Enter Button */}
+          {address && (
+            <button
+              onClick={() => navigate("/battle-bot-builder")}
+              className="w-full bg-yellow-500 text-black px-6 py-4 rounded-lg font-bold hover:bg-yellow-400 transition-colors"
+            >
+              Enter Battle Bots →
+            </button>
+          )}
         </div>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

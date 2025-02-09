@@ -182,9 +182,23 @@ export default function NewBot() {
   return (
     <div className="min-h-screen w-full bg-black text-white font-mono p-4 overflow-auto">
       <div className="container mx-auto">
-        <h1 className="text-4xl font-bold mb-6 text-center text-yellow-400 pixelated">
-          Battle Bot Builder
-        </h1>
+        <div className="flex items-center gap-4 mb-8">
+          <Link 
+            to=".."
+            className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            ← Back to Dashboard
+          </Link>
+          <h1 className="text-4xl font-bold text-yellow-400 pixelated">
+            Build Your Bot
+          </h1>
+        </div>
+
+        {actionData?.success && (
+          <div className="mb-4 p-4 bg-green-400/20 text-green-400 rounded-lg pixelated-border">
+            Bot created successfully!
+          </div>
+        )}
 
         <Form method="post" className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-gray-900 p-6 rounded-lg pixelated-border">

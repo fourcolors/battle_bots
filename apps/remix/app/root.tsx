@@ -10,7 +10,7 @@ import {
   useLoaderData,
 } from "@remix-run/react";
 import { Toaster } from "sonner";
-import { base, hardhat } from "viem/chains";
+import { base, baseSepolia, hardhat } from "viem/chains";
 import { Navigation } from "./components/Navigation";
 import { toastConfig } from "./utils/toast";
 
@@ -74,7 +74,7 @@ export default function App() {
       <body className="bg-black">
         <OnchainKitProvider
           apiKey={ENV.ONCHAINKIT_API_KEY}
-          chain={chain}
+          chain={baseSepolia}
           config={{
             appearance: {
               name: "Battle Bots",

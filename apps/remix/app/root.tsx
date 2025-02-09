@@ -1,3 +1,5 @@
+import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
+import type { LinksFunction } from "@remix-run/node";
 import {
   Links,
   Meta,
@@ -5,15 +7,14 @@ import {
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  useNavigate,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
-import {PrivyProvider} from '@privy-io/react-auth';
-import origin from "~/assets/origin.jpg" 
-import dotenv from "dotenv";
+import { useEffect } from 'react';
 
 import "./tailwind.css";
 
-
+// Use Robohash URL for the logo
+const LOGO_URL = "https://robohash.org/battlebot?set=set1&size=256x256";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -54,25 +55,71 @@ export const loader = () => {
   };
 };
 
+function AuthWrapper({ children }: { children: React.ReactNode }) {
+  const { ready, authenticated, login, logout } = usePrivy();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!ready) return;
+    
+    if (authenticated) {
+      navigate('/bot/new');
+    } else {
+      navigate('/');
+    }
+  }, [ready, authenticated, navigate]);
+
+  // Show loading state while Privy is initializing
+  if (!ready) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <>
+      <div className="fixed top-4 right-4 z-50">
+        {authenticated ? (
+          <button
+            onClick={logout}
+            className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+          >
+            Logout
+          </button>
+        ) : (
+          <button
+            onClick={login}
+            className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+          >
+            Login
+          </button>
+        )}
+      </div>
+      {children}
+    </>
+  );
+}
+
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
   
   return (
     <PrivyProvider
-    appId={ENV.PRIVY_APP_ID || "cm6tjsr3g0037bdcuszt7wjhj"}
-    config={{
-      appearance: {
-        theme: 'light',
-        accentColor: '#676FFF',
-        logo: origin
-      },
-      embeddedWallets: {
-        createOnLogin: 'users-without-wallets',
-      },
-    }}
+      appId={ENV.PRIVY_APP_ID || "cm6tjsr3g0037bdcuszt7wjhj"}
+      config={{
+        appearance: {
+          theme: 'light',
+          accentColor: '#676FFF',
+          logo: LOGO_URL,
+          showWalletLoginFirst: true,
+        },
+        embeddedWallets: {
+          createOnLogin: 'users-without-wallets',
+        },
+        loginMethods: ['wallet'],
+      }}
     >
-    <Outlet />
+      <AuthWrapper>
+        <Outlet />
+      </AuthWrapper>
     </PrivyProvider>
-  )
-
+  );
 }

@@ -56,7 +56,7 @@ export const loader = () => {
 };
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,28 +74,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     return <div>Loading...</div>;
   }
 
-  return (
-    <>
-      <div className="fixed top-4 right-4 z-50">
-        {authenticated ? (
-          <button
-            onClick={logout}
-            className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-          >
-            Logout
-          </button>
-        ) : (
-          <button
-            onClick={login}
-            className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-          >
-            Login
-          </button>
-        )}
-      </div>
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
 
 export default function App() {

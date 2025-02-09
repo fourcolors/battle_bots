@@ -7,6 +7,21 @@ describe("BattleBot", function () {
   let owner: any;
   let addr1: any;
 
+  // Example of expected metadata format stored on IPFS
+  const EXAMPLE_METADATA = {
+    version: 1,
+    name: "Battle Bot #1",
+    battlePrompt:
+      "A strategic combat AI that specializes in calculated strikes",
+    image: "ipfs://QmTest/image.png",
+    attributes: {
+      attack: 75,
+      defense: 60,
+      speed: 85,
+      mainWeapon: 1,
+    },
+  };
+
   const TEST_URI = "ipfs://QmTest";
 
   beforeEach(async function () {
